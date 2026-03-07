@@ -25,7 +25,13 @@
       "before_finish": [
         "workflow/verify-before-completing",
         "git/conventional-commits",
-        "memory/save-discoveries-to-memory"
+        "memory/save-discoveries-to-memory",
+        {
+          "slug": "life-manager/track-project-progress",
+          "vars": {
+            "project_name": "Sankey Tableau Extension"
+          }
+        }
       ]
     }
   }
