@@ -1,0 +1,32 @@
+[
+  {
+    "target": "Claude Code",
+    "ai_workflow": {
+      "type": "standard",
+      "preamble": "Tableau Viz Extension rendering interactive Sankey diagrams. Stack: TypeScript, React 18, D3.js, d3-sankey, tinycolor2, Webpack 5, Tableau Extensions API.\n\nSource files live in root (entry points), components/, and utils/ — no src/ directory. Webpack outputs bundled JS to project root. The `tableau` global is loaded via script tag, not imported.\n\nTo build: `npm run build`. To deploy locally: `./copy-files.sh` (copies to ../extensions-api/sankey-tableau-extension/). The extension requires the Tableau Extensions API server on localhost:8765 and Tableau Desktop/Public to run.\n\nD3 rendering is imperative SVG manipulation inside React useEffect hooks — not React virtual DOM. Color 'fogging' desaturates non-selected elements. Selection uses composite key matching with null separators. Data is paginated (100 rows/page) from Tableau's API.",
+      "before_start": [
+        "workflow/understand-before-changing",
+        "ai-behavior/confirm-destructive-actions",
+        "ai-behavior/minimal-diffs",
+        "git/feature-branch-workflow",
+        "memory/consult-memory-before-work"
+      ],
+      "rules": [
+        "code-style/strict-typescript",
+        "code-style/small-focused-functions",
+        "code-style/descriptive-naming",
+        "code-style/early-returns-and-guards",
+        "code-style/comments-explain-why-not-what",
+        "code-style/no-hardcoded-values",
+        "error-handling/actionable-error-messages",
+        "security/validate-external-input",
+        "review/thorough-code-review"
+      ],
+      "before_finish": [
+        "workflow/verify-before-completing",
+        "git/conventional-commits",
+        "memory/save-discoveries-to-memory"
+      ]
+    }
+  }
+]
