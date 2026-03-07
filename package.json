@@ -4,14 +4,12 @@
   "description": "A Tableau viz extension for creating interactive Sankey diagrams",
   "main": "SankeyViz.js",
   "scripts": {
-    "build": "webpack",
-    "build:dev": "webpack --mode=development",
-    "build:deploy": "webpack && npm run copy-files",
+    "build": "node esbuild.config.mjs",
+    "build:dev": "node esbuild.config.mjs --dev",
+    "build:deploy": "node esbuild.config.mjs && ./copy-files.sh",
     "copy-files": "./copy-files.sh",
-    "dev": "webpack --watch --mode=development",
-    "dev:full": "concurrently \"npm run dev\" \"npm run copy-files:watch\"",
-    "copy-files:watch": "nodemon --watch SankeyViz.html --watch SankeyViz.js --watch SankeyViz.trex --watch SankeyConfig.html --watch SankeyConfig.js --watch sample-data.csv --exec \"npm run copy-files\"",
-    "start:dev": "npm run dev:full",
+    "dev": "node esbuild.config.mjs --dev --watch",
+    "dev:standalone": "npm run build:dev && node dev/server.mjs",
     "lint": "eslint SankeyViz.ts",
     "lint:fix": "eslint SankeyViz.ts --fix",
     "clean": "rm -f SankeyViz.js SankeyViz.js.map SankeyConfig.js SankeyConfig.js.map"
@@ -32,13 +30,9 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/tinycolor2": "^1.4.3",
-    "concurrently": "^8.2.2",
+    "esbuild": "^0.27.3",
     "eslint": "^8.47.0",
-    "nodemon": "^3.0.1",
-    "ts-loader": "^9.5.2",
-    "typescript": "^4.9.0",
-    "webpack": "^5.100.1",
-    "webpack-cli": "^6.0.1"
+    "typescript": "^4.9.0"
   },
   "dependencies": {
     "d3": "^7.8.5",
