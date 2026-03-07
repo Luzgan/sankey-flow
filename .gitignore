@@ -6,4 +6,5 @@
 node_modules
 *.csv
 dev/screenshot-*
+dev/tableau-extensions.min.js
 .playwright-mcp/

@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PROJECT_ROOT = join(__dirname, "..");
 const MOCK_TABLEAU_PATH = join(__dirname, "mock-tableau.js");
+const REAL_TABLEAU_PATH = join(__dirname, "tableau-extensions.min.js");
 const PORT = process.env.PORT || 8765;
+const isTableauMode = process.argv.includes("--tableau");
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -26,9 +28,9 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   let pathname = url.pathname;
 
-  // Intercept requests for the real Tableau Extensions API → serve mock
+  // Intercept requests for the Tableau Extensions API library
   if (pathname.includes("tableau.extensions") && pathname.endsWith(".js")) {
-    return serveFile(res, MOCK_TABLEAU_PATH);
+    return serveFile(res, isTableauMode ? REAL_TABLEAU_PATH : MOCK_TABLEAU_PATH);
   }
 
   // Serve from the sankey-tableau-extension subdirectory path
@@ -80,9 +82,13 @@ async function serveFile(res, filePath) {
 }
 
 server.listen(PORT, () => {
+  const mode = isTableauMode ? "Tableau (real API)" : "Standalone (mock API)";
   console.log(`Dev server running at http://localhost:${PORT}`);
+  console.log(`  Mode:      ${mode}`);
   console.log(`  Main viz:  http://localhost:${PORT}/SankeyViz.html`);
   console.log(`  Config:    http://localhost:${PORT}/SankeyConfig.html`);
-  console.log(`\n  Tableau API is mocked — no Tableau needed.`);
+  if (!isTableauMode) {
+    console.log(`\n  Tableau API is mocked — no Tableau needed.`);
+  }
   console.log(`  Press Ctrl+C to stop.\n`);
 });
