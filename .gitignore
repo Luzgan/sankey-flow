@@ -1,4 +1,9 @@
-*.js
-*.js.map
+# Build output (root level only)
+/*.js
+/*.js.map
+/*.LEGAL.txt
+/*.LICENSE.txt
 node_modules
 *.csv
+dev/screenshot-*
+.playwright-mcp/
