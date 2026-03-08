@@ -783,6 +783,53 @@ export function getEncodedData(
     return true;
   });
 
+  // Drop-off mode (Step 13b): add synthetic drop-off nodes and links
+  if (settings.sankeyType === "dropoff" && encodingMap.level && encodingMap.level.length >= 2) {
+    const dropoffNodes: SankeyNode[] = [];
+    const dropoffLinks: SankeyLink[] = [];
+
+    // Calculate total outgoing value per node
+    const nodeOutgoing = new Map<string, number>();
+    const nodeIncoming = new Map<string, number>();
+    for (const link of cleanLinks) {
+      const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+      const targetId = typeof link.target === "string" ? link.target : link.target.id;
+      nodeOutgoing.set(sourceId, (nodeOutgoing.get(sourceId) || 0) + link.value);
+      nodeIncoming.set(targetId, (nodeIncoming.get(targetId) || 0) + link.value);
+    }
+
+    // For each node (except last-level nodes), compute drop-off
+    const maxLevel = encodingMap.level.length - 1;
+    for (const node of nodes) {
+      if (node.layer >= maxLevel) continue;
+      const incoming = nodeIncoming.get(node.id) || 0;
+      const outgoing = nodeOutgoing.get(node.id) || 0;
+      // For first-level nodes, "total" is the outgoing value (no incoming)
+      const total = node.layer === 0 ? outgoing : incoming;
+      const lost = total - outgoing;
+
+      if (lost > 0 && (settings.dropoffStyle === "remainder" || settings.dropoffStyle === "both")) {
+        const dropoffId = `dropoff-${node.layer}-${node.id}`;
+        const dropoffNode: SankeyNode = {
+          id: dropoffId,
+          name: "(Drop-off)",
+          layer: node.layer + 1,
+          color: "#d0d0d0",
+        };
+        dropoffNodes.push(dropoffNode);
+        dropoffLinks.push({
+          source: node.id,
+          target: dropoffId,
+          value: lost,
+          tupleId: -1,
+        });
+      }
+    }
+
+    nodes.push(...dropoffNodes);
+    cleanLinks.push(...dropoffLinks);
+  }
+
   return { nodes, links: cleanLinks, warnings };
 }
 
@@ -859,7 +906,7 @@ export function computeSankeyLayout(
 
   const layout = sankeyGenerator({ nodes, links });
 
-  // Assign colors based on color encoding or level
+  // Assign colors based on color scheme and encoding
   let selectedPalette: string[] =
     colorPalettes[settings.colorScheme as keyof typeof colorPalettes] || colorPalettes.default;
 
@@ -874,6 +921,24 @@ export function computeSankeyLayout(
     }
   }
 
+  // Parse per-node color overrides (Step 7a)
+  let nodeOverrides: Record<string, string> = {};
+  if (settings.colorScheme === "perNode") {
+    try {
+      const parsed: unknown = JSON.parse(settings.nodeColorOverrides);
+      if (parsed && typeof parsed === "object") nodeOverrides = parsed as Record<string, string>;
+    } catch { /* fallback */ }
+  }
+
+  // Parse per-level palettes (Step 7b)
+  let levelPalettes: Record<string, string[]> = {};
+  if (settings.colorScheme === "perLevel") {
+    try {
+      const parsed: unknown = JSON.parse(settings.levelPalettes);
+      if (parsed && typeof parsed === "object") levelPalettes = parsed as Record<string, string[]>;
+    } catch { /* fallback */ }
+  }
+
   const uniqueColorValues = [
     ...new Set(
       layout.nodes
@@ -885,13 +950,30 @@ export function computeSankeyLayout(
   const hasColorEncoding = uniqueColorValues.length > 0;
 
   layout.nodes.forEach((node: SankeyNode) => {
+    // Per-node override takes highest priority
+    if (settings.colorScheme === "perNode" && nodeOverrides[node.name]) {
+      node.color = nodeOverrides[node.name];
+      return;
+    }
+
+    // Per-level palette
+    if (settings.colorScheme === "perLevel") {
+      const layerPalette = levelPalettes[String(node.layer)];
+      if (layerPalette && layerPalette.length > 0) {
+        // Within a level, assign colors by index among nodes in that level
+        const nodesInLayer = layout.nodes.filter((n: SankeyNode) => n.layer === node.layer);
+        const indexInLayer = nodesInLayer.indexOf(node);
+        node.color = layerPalette[indexInLayer % layerPalette.length];
+        return;
+      }
+      // Fall through to default if no palette for this level
+    }
+
     if (hasColorEncoding && node.colorValue) {
       const colorIndex = uniqueColorValues.indexOf(node.colorValue);
-      node.color =
-        selectedPalette[colorIndex % selectedPalette.length];
+      node.color = selectedPalette[colorIndex % selectedPalette.length];
     } else {
-      node.color =
-        selectedPalette[node.layer % selectedPalette.length];
+      node.color = selectedPalette[node.layer % selectedPalette.length];
     }
   });
 

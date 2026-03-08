@@ -22,7 +22,9 @@ const COLOR_SCHEME_OPTIONS: RadioOption[] = [
   { value: "default", label: "Standard", description: "Balanced palette for general use" },
   { value: "colorblind", label: "Colorblind-friendly", description: "Optimized for color vision deficiency" },
   { value: "monochrome", label: "Grayscale", description: "Single-hue palette for print or minimal design" },
-  { value: "custom", label: "Custom", description: "Define your own colors" },
+  { value: "custom", label: "Custom palette", description: "Define your own 10-color palette" },
+  { value: "perNode", label: "Per node", description: "Assign a specific color to each node by name" },
+  { value: "perLevel", label: "Per level", description: "Different color palettes for each column" },
 ];
 
 const LINK_STYLE_OPTIONS: RadioOption[] = [
@@ -72,6 +74,17 @@ const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
 const LEGEND_POSITION_OPTIONS: RadioOption[] = [
   { value: "bottom", label: "Bottom", description: "Legend below the chart" },
   { value: "right", label: "Right", description: "Legend to the right of the chart" },
+];
+
+const SANKEY_TYPE_OPTIONS: RadioOption[] = [
+  { value: "standard", label: "Standard", description: "Multi-level left-to-right flow diagram" },
+  { value: "dropoff", label: "Drop-off", description: "Show lost value at each level as drop-off nodes" },
+];
+
+const DROPOFF_STYLE_OPTIONS: RadioOption[] = [
+  { value: "remainder", label: "Remainder nodes", description: "Show a muted (Drop-off) node for lost value" },
+  { value: "downward", label: "Downward flow", description: "Drop-off flows render downward (not yet implemented)" },
+  { value: "both", label: "Both", description: "Remainder node with downward flow" },
 ];
 
 const CLICK_ACTION_OPTIONS: RadioOption[] = [
@@ -205,6 +218,71 @@ const CustomPaletteEditor: React.FC<{
   );
 };
 
+const NodeColorEditor: React.FC<{
+  overridesJson: string;
+  onChange: (json: string) => void;
+}> = ({ overridesJson, onChange }) => {
+  let overrides: Record<string, string>;
+  try {
+    const parsed: unknown = JSON.parse(overridesJson);
+    overrides = (parsed && typeof parsed === "object") ? parsed as Record<string, string> : {};
+  } catch {
+    overrides = {};
+  }
+
+  const [newName, setNewName] = useState("");
+
+  const handleColorChange = (name: string, color: string): void => {
+    const updated = { ...overrides, [name]: color };
+    onChange(JSON.stringify(updated));
+  };
+
+  const handleRemove = (name: string): void => {
+    const updated = { ...overrides };
+    delete updated[name];
+    onChange(JSON.stringify(updated));
+  };
+
+  const handleAdd = (): void => {
+    if (!newName.trim()) return;
+    const updated = { ...overrides, [newName.trim()]: "#4e79a7" };
+    onChange(JSON.stringify(updated));
+    setNewName("");
+  };
+
+  return (
+    <div className="custom-palette-editor">
+      {Object.entries(overrides).map(([name, color]) => (
+        <div key={name} className="node-color-row">
+          <input
+            type="color"
+            className="color-swatch"
+            value={color}
+            onChange={(e) => handleColorChange(name, e.target.value)}
+          />
+          <span className="node-color-name">{name}</span>
+          <button className="node-color-remove" onClick={() => handleRemove(name)} title="Remove">&times;</button>
+        </div>
+      ))}
+      <div className="node-color-add">
+        <input
+          type="text"
+          placeholder="Node name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          className="node-color-input"
+        />
+        <button onClick={handleAdd} className="btn btn-save" style={{ padding: "4px 12px", minWidth: "auto" }}>Add</button>
+      </div>
+      <div className="help-text">
+        Type a node name and click Add. The color will override the palette
+        for that node. Missing overrides fall back to the default palette.
+      </div>
+    </div>
+  );
+};
+
 export const ConfigurationApp: React.FC = () => {
   const [settings, setSettings] =
     useState<ExtensionSettings>(DEFAULT_SETTINGS);
@@ -306,6 +384,28 @@ export const ConfigurationApp: React.FC = () => {
             colorsJson={settings.customColors}
             onChange={(json) => updateSetting("customColors", json)}
           />
+        )}
+        {settings.colorScheme === "perNode" && (
+          <NodeColorEditor
+            overridesJson={settings.nodeColorOverrides}
+            onChange={(json) => updateSetting("nodeColorOverrides", json)}
+          />
+        )}
+        {settings.colorScheme === "perLevel" && (
+          <div className="custom-palette-editor">
+            <div className="help-text">
+              Per-level palettes are stored as JSON. Each level index (0, 1, 2...) maps to an
+              array of hex colors. Nodes in that level cycle through the palette.
+              Edit the JSON below or use the Tableau color shelf for automatic coloring.
+            </div>
+            <textarea
+              className="template-textarea"
+              value={settings.levelPalettes}
+              onChange={(e) => updateSetting("levelPalettes", e.target.value)}
+              rows={4}
+              placeholder='{"0": ["#4e79a7", "#f28e2c"], "1": ["#e15759", "#76b7b2"]}'
+            />
+          </div>
         )}
         <RadioGroup
           label="Flow Colors"
@@ -446,6 +546,24 @@ export const ConfigurationApp: React.FC = () => {
               </div>
             )}
           </>
+        )}
+
+        <SectionHeader title="Chart Type" />
+        <RadioGroup
+          label="Sankey Type"
+          name="sankeyType"
+          value={settings.sankeyType}
+          onChange={(v) => updateSetting("sankeyType", v as ExtensionSettings["sankeyType"])}
+          options={SANKEY_TYPE_OPTIONS}
+        />
+        {settings.sankeyType === "dropoff" && (
+          <RadioGroup
+            label="Drop-off Style"
+            name="dropoffStyle"
+            value={settings.dropoffStyle}
+            onChange={(v) => updateSetting("dropoffStyle", v as ExtensionSettings["dropoffStyle"])}
+            options={DROPOFF_STYLE_OPTIONS}
+          />
         )}
 
         <SectionHeader title="Interaction" />

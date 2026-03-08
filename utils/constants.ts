@@ -53,7 +53,7 @@ export const EXPORT_BUTTON_SIZE = 28;
 export const EXPORT_BUTTON_MARGIN = 8;
 
 export interface ExtensionSettings {
-  colorScheme: "default" | "colorblind" | "monochrome" | "custom";
+  colorScheme: "default" | "colorblind" | "monochrome" | "custom" | "perNode" | "perLevel";
   linkStyle: "gradient" | "source" | "target";
   showValues: boolean;
   showPercentages: boolean;
@@ -83,6 +83,12 @@ export interface ExtensionSettings {
   // Step 11: Draggable nodes
   enableDrag: boolean;
   nodePositions: string;
+  // Step 7: Advanced colors
+  nodeColorOverrides: string;
+  levelPalettes: string;
+  // Step 13: Sankey types
+  sankeyType: "standard" | "dropoff";
+  dropoffStyle: "downward" | "remainder" | "both";
   // Step 12: Filter connected nodes
   clickAction: "select" | "filter" | "filterConnected";
 }
@@ -110,5 +116,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   legendPosition: "bottom",
   enableDrag: false,
   nodePositions: "{}",
+  nodeColorOverrides: "{}",
+  levelPalettes: "{}",
+  sankeyType: "standard",
+  dropoffStyle: "remainder",
   clickAction: "select",
 };

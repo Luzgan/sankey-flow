@@ -334,6 +334,53 @@
         border-color: #4e79a7;
         box-shadow: 0 0 0 2px rgba(78, 121, 167, 0.2);
       }
+
+      /* Per-node color editor */
+      .node-color-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .node-color-name {
+        flex: 1;
+        font-size: 13px;
+        color: #333;
+      }
+
+      .node-color-remove {
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: #999;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+      }
+
+      .node-color-remove:hover {
+        color: #e15759;
+      }
+
+      .node-color-add {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .node-color-input {
+        flex: 1;
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .node-color-input:focus {
+        outline: none;
+        border-color: #4e79a7;
+      }
     </style>
   </head>
   <body>
