@@ -18,7 +18,6 @@ import {
 import {
   X_PADDING,
   Y_PADDING,
-  LEVEL_WIDTH,
   TOP_MARGIN,
   LABEL_MARGIN,
   LINK_OPACITY,
@@ -31,6 +30,8 @@ import {
   LABEL_FONT_SIZE_DEFAULT,
   LABEL_FONT_SIZE_MIN,
   LABEL_COLLISION_PADDING,
+  NULL_DISPLAY_NAME,
+  LINK_LABEL_MIN_WIDTH,
   ExtensionSettings,
 } from "./constants";
 
@@ -64,6 +65,7 @@ export interface SankeyLink {
 export interface EncodedData {
   nodes: SankeyNode[];
   links: SankeyLink[];
+  warnings?: string[];
 }
 
 // Color palettes for different schemes
@@ -143,8 +145,8 @@ export async function Sankey(
     TOP_MARGIN,
     width,
     height,
-    LEVEL_WIDTH + X_PADDING * 2,
-    Y_PADDING,
+    settings.nodeWidth,
+    settings.nodePadding,
     settings
   );
 
@@ -230,6 +232,44 @@ export async function Sankey(
     .attr("stroke", NODE_BORDER_COLOR)
     .attr("stroke-width", NODE_BORDER_WIDTH);
 
+  // Apply drag behavior if enabled (Step 11)
+  if (settings.enableDrag) {
+    const nodeRects = svg.selectAll<SVGRectElement, SankeyNode>(".node");
+    const linkPaths = () => svg.selectAll<SVGPathElement, SankeyLink>(".link");
+
+    nodeRects.call(
+      d3.drag<SVGRectElement, SankeyNode>()
+        .on("start", function () {
+          d3.select(this).raise().attr("stroke-width", 2);
+        })
+        .on("drag", function (event: any, d: SankeyNode) {
+          const dy = event.dy;
+          const nodeHeight = (d.y1 || 0) - (d.y0 || 0);
+          const newY0 = Math.max(TOP_MARGIN, Math.min(height - 5 - nodeHeight, (d.y0 || 0) + dy));
+          d.y0 = newY0;
+          d.y1 = newY0 + nodeHeight;
+          d3.select(this).attr("y", d.y0);
+
+          // Recalculate link paths
+          linkPaths().attr("d", getLinkPath);
+
+          // Update link labels if shown
+          if (settings.showLinkLabels) {
+            svg.selectAll<SVGTextElement, SankeyLink>(".link-label")
+              .attr("y", (ld: SankeyLink) => ((ld.y0 || 0) + (ld.y1 || 0)) / 2);
+          }
+
+          // Update node labels
+          svg.selectAll<SVGTextElement, SankeyNode>(".node-label")
+            .filter((nd: SankeyNode) => nd.id === d.id)
+            .attr("y", ((d.y1 || 0) + (d.y0 || 0)) / 2);
+        })
+        .on("end", function () {
+          d3.select(this).attr("stroke-width", NODE_BORDER_WIDTH);
+        })
+    );
+  }
+
   // Create link paths
   const links = svg
     .append("g")
@@ -247,6 +287,32 @@ export async function Sankey(
     )
     .attr("stroke-width", (d: SankeyLink) => Math.max(1, d.width || 1));
 
+  // Add link labels (Step 6)
+  if (settings.showLinkLabels) {
+    svg
+      .append("g")
+      .attr("class", "link-labels")
+      .attr("pointer-events", "none")
+      .selectAll()
+      .data(layout.links.filter((l: SankeyLink) => (l.width || 0) >= LINK_LABEL_MIN_WIDTH))
+      .join("text")
+      .attr("class", "link-label")
+      .attr("x", (d: SankeyLink) => {
+        const source = d.source as SankeyNode;
+        const target = d.target as SankeyNode;
+        return ((source.x1 || 0) + (target.x0 || 0)) / 2;
+      })
+      .attr("y", (d: SankeyLink) => {
+        return ((d.y0 || 0) + (d.y1 || 0)) / 2;
+      })
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("font-size", "10px")
+      .attr("fill", "#555")
+      .attr("fill-opacity", 0.8)
+      .text((d: SankeyLink) => d.value.toLocaleString());
+  }
+
   // Add node labels at natural positions (collision resolved post-render)
   svg
     .append("g")
@@ -255,16 +321,26 @@ export async function Sankey(
     .join("text")
     .attr("class", "node-label")
     .attr("x", (d: SankeyNode) =>
-      getNodeLabelX(d, maxLayer, settings.labelPosition)
+      getNodeLabelX(d, maxLayer, settings.labelPosition, settings.labelAlign)
     )
-    .attr("y", (d: SankeyNode) => ((d.y1 || 0) + (d.y0 || 0)) / 2)
+    .attr("y", (d: SankeyNode) => {
+      if (settings.labelPosition === "inside") {
+        const y0 = d.y0 || 0;
+        const y1 = d.y1 || 0;
+        if (settings.labelVerticalAlign === "top") return y0 + LABEL_PADDING;
+        if (settings.labelVerticalAlign === "bottom") return y1 - LABEL_PADDING;
+      }
+      return ((d.y1 || 0) + (d.y0 || 0)) / 2;
+    })
     .attr("dy", (d: SankeyNode) => {
+      if (settings.labelPosition === "inside" && settings.labelVerticalAlign === "top") return "0.8em";
+      if (settings.labelPosition === "inside" && settings.labelVerticalAlign === "bottom") return "-0.3em";
       const nodeHeight = (d.y1 || 0) - (d.y0 || 0);
       const hasValue = settings.showValues && nodeHeight >= MIN_NODE_HEIGHT_FOR_VALUE;
       return hasValue ? "-0.1em" : "0.35em";
     })
     .attr("text-anchor", (d: SankeyNode) =>
-      getNodeLabelAnchor(d, maxLayer, settings.labelPosition)
+      getNodeLabelAnchor(d, maxLayer, settings.labelPosition, settings.labelAlign)
     )
     .text((d: SankeyNode) => d.name)
     .attr("fill", (d: SankeyNode, index: number) => {
@@ -283,7 +359,7 @@ export async function Sankey(
         .append("tspan")
         .attr(
           "x",
-          getNodeLabelX(d, maxLayer, settings.labelPosition)
+          getNodeLabelX(d, maxLayer, settings.labelPosition, settings.labelAlign)
         )
         .attr("dy", "1.2em")
         .attr("font-size", "10px")
@@ -376,11 +452,16 @@ function getLinkOpacity(
 function getNodeLabelX(
   node: SankeyNode,
   maxLayer: number,
-  labelPosition: string
+  labelPosition: string,
+  labelAlign = "center"
 ): number {
   const midX = ((node.x1 || 0) + (node.x0 || 0)) / 2;
 
-  if (labelPosition === "inside") return midX;
+  if (labelPosition === "inside") {
+    if (labelAlign === "left") return (node.x0 || 0) + X_PADDING + LABEL_PADDING;
+    if (labelAlign === "right") return (node.x1 || 0) - X_PADDING - LABEL_PADDING;
+    return midX;
+  }
 
   // "auto" and "outside" use the same adaptive logic
   if (node.layer === 0) return (node.x0 || 0) - LABEL_PADDING;
@@ -394,9 +475,14 @@ function getNodeLabelX(
 function getNodeLabelAnchor(
   node: SankeyNode,
   maxLayer: number,
-  labelPosition: string
+  labelPosition: string,
+  labelAlign = "center"
 ): string {
-  if (labelPosition === "inside") return "middle";
+  if (labelPosition === "inside") {
+    if (labelAlign === "left") return "start";
+    if (labelAlign === "right") return "end";
+    return "middle";
+  }
 
   // "auto" and "outside" use the same adaptive logic
   if (node.layer === 0) return "end";
@@ -551,18 +637,28 @@ export function getEncodedData(
       const levelField = encodingMap.level[levelIndex];
       nodesPerLevel.set(levelIndex, new Map());
 
-      const uniqueValues = new Set<string>();
+      // Track unique values with display names (formattedValue for aliases)
+      const valueDisplayMap = new Map<string, string>();
       for (const row of data) {
-        if (row[levelField.name]) {
-          uniqueValues.add(row[levelField.name].value.toString());
+        const cell = row[levelField.name];
+        if (!cell) continue;
+        const rawValue = cell.value?.toString() ?? "";
+        if (!rawValue && settings.ignoreNulls) continue;
+        const key = rawValue || NULL_DISPLAY_NAME;
+        if (!valueDisplayMap.has(key)) {
+          // Use formattedValue for display (aliases), fall back to raw value
+          const displayName = rawValue
+            ? (cell.formattedValue?.toString() || rawValue)
+            : NULL_DISPLAY_NAME;
+          valueDisplayMap.set(key, displayName);
         }
       }
 
-      for (const value of uniqueValues) {
+      for (const [value, displayName] of valueDisplayMap) {
         const nodeId = `${levelIndex}-${value}`;
         const node: SankeyNode = {
           id: nodeId,
-          name: value,
+          name: displayName,
           layer: levelIndex,
           color: palette[levelIndex % palette.length],
         };
@@ -587,9 +683,10 @@ export function getEncodedData(
 
       for (let li = 0; li < encodingMap.level.length; li++) {
         const lf = encodingMap.level[li];
-        const nv = row[lf.name]?.value?.toString();
-        if (!nv) continue;
-        const nodeId = `${li}-${nv}`;
+        const nv = row[lf.name]?.value?.toString() ?? "";
+        const nodeKey = nv || NULL_DISPLAY_NAME;
+        if (!nv && settings.ignoreNulls) continue;
+        const nodeId = `${li}-${nodeKey}`;
 
         if (!nodeColorCounts.has(nodeId))
           nodeColorCounts.set(nodeId, new Map());
@@ -621,6 +718,14 @@ export function getEncodedData(
       const edgeValue = getLinkValue(row, edgeField);
 
       if (edgeValue > 0) {
+        // Check if any level field is null — skip entire row if ignoreNulls
+        if (settings.ignoreNulls) {
+          const hasNull = encodingMap.level.some(
+            (f) => !row[f.name]?.value?.toString()
+          );
+          if (hasNull) continue;
+        }
+
         for (
           let levelIndex = 0;
           levelIndex < encodingMap.level.length - 1;
@@ -629,36 +734,56 @@ export function getEncodedData(
           const sourceField = encodingMap.level[levelIndex];
           const targetField = encodingMap.level[levelIndex + 1];
 
-          const sourceValue = row[sourceField.name]?.value?.toString();
-          const targetValue = row[targetField.name]?.value?.toString();
+          const sourceRaw = row[sourceField.name]?.value?.toString() ?? "";
+          const targetRaw = row[targetField.name]?.value?.toString() ?? "";
+          const sourceKey = sourceRaw || NULL_DISPLAY_NAME;
+          const targetKey = targetRaw || NULL_DISPLAY_NAME;
 
-          if (sourceValue && targetValue) {
-            const sourceNode = nodesPerLevel
-              .get(levelIndex)
-              ?.get(sourceValue);
-            const targetNode = nodesPerLevel
-              .get(levelIndex + 1)
-              ?.get(targetValue);
+          const sourceNode = nodesPerLevel.get(levelIndex)?.get(sourceKey);
+          const targetNode = nodesPerLevel.get(levelIndex + 1)?.get(targetKey);
 
-            if (sourceNode && targetNode) {
-              links.push({
-                source: sourceNode.id,
-                target: targetNode.id,
-                value: edgeValue,
-                tupleId: row.tupleId,
-              });
-            }
+          if (sourceNode && targetNode) {
+            links.push({
+              source: sourceNode.id,
+              target: targetNode.id,
+              value: edgeValue,
+              tupleId: row.tupleId,
+            });
           }
         }
       }
     }
   }
 
-  if (settings.aggregateLinks) {
-    return { nodes, links: aggregateLinks(links) };
+  // Circuit breaker (Step 14): detect values appearing in multiple levels
+  const warnings: string[] = [];
+  const valueToLevels = new Map<string, number[]>();
+  for (const node of nodes) {
+    const existing = valueToLevels.get(node.name) || [];
+    existing.push(node.layer);
+    valueToLevels.set(node.name, existing);
+  }
+  for (const [name, levels] of valueToLevels) {
+    if (levels.length > 1) {
+      warnings.push(
+        `"${name}" appears in levels ${levels.map((l) => l + 1).join(", ")}. This may cause unexpected layout.`
+      );
+    }
   }
 
-  return { nodes, links };
+  // Detect self-referencing links (source === target by name)
+  const finalLinks = settings.aggregateLinks ? aggregateLinks(links) : links;
+  const cleanLinks = finalLinks.filter((link) => {
+    const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+    const targetId = typeof link.target === "string" ? link.target : link.target.id;
+    if (sourceId === targetId) {
+      warnings.push(`Self-referencing link skipped: ${sourceId}`);
+      return false;
+    }
+    return true;
+  });
+
+  return { nodes, links: cleanLinks, warnings };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
 import { ExtensionSettings } from "../utils/constants";
 import type { SankeyLink, SankeyNode } from "../utils/sankey-utils";
@@ -15,6 +15,7 @@ interface SankeyChartProps {
     totalLinkValue: number;
     layoutLinks: SankeyLink[];
     hiddenLabelNodeIds: Set<number>;
+    dataWarnings: string[];
   }) => void;
 }
 
@@ -28,6 +29,26 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const sankeyInstanceRef = useRef<any>(null);
+  const [legendItems, setLegendItems] = useState<{ color: string; label: string }[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportSvg = useCallback(() => {
+    if (!svgRef.current) return;
+    import("../utils/export-utils").then(({ exportAsSvg }) => {
+      const innerSvg = svgRef.current?.querySelector("svg") as SVGSVGElement | null;
+      if (innerSvg) exportAsSvg(innerSvg);
+    });
+    setShowExportMenu(false);
+  }, []);
+
+  const handleExportPng = useCallback(() => {
+    if (!svgRef.current) return;
+    import("../utils/export-utils").then(({ exportAsPng }) => {
+      const innerSvg = svgRef.current?.querySelector("svg") as SVGSVGElement | null;
+      if (innerSvg) exportAsPng(innerSvg);
+    });
+    setShowExportMenu(false);
+  }, []);
 
   useEffect(() => {
     const renderChart = async () => {
@@ -50,6 +71,8 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           settings
         );
 
+        const dataWarnings = encodedData.warnings || [];
+
         const sankey = await Sankey(
           encodedData,
           encodingMap,
@@ -68,6 +91,17 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           sankey.layoutNodes
         );
 
+        // Extract legend items from layout nodes
+        const colorMap = new Map<string, string>();
+        for (const node of sankey.layoutNodes) {
+          if (!colorMap.has(node.color)) {
+            colorMap.set(node.color, node.colorValue || node.name);
+          }
+        }
+        setLegendItems(
+          [...colorMap.entries()].map(([color, label]) => ({ color, label }))
+        );
+
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
@@ -75,6 +109,7 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
             totalLinkValue: sankey.totalLinkValue,
             layoutLinks: sankey.layoutLinks,
             hiddenLabelNodeIds,
+            dataWarnings,
           });
         }
       } catch (error) {
@@ -121,6 +156,8 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           settings
         );
 
+        const dataWarnings = encodedData.warnings || [];
+
         const sankey = await Sankey(
           encodedData,
           encodingMap,
@@ -146,6 +183,7 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
             totalLinkValue: sankey.totalLinkValue,
             layoutLinks: sankey.layoutLinks,
             hiddenLabelNodeIds,
+            dataWarnings,
           });
         }
       } catch (error) {
@@ -166,13 +204,43 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   ]);
 
   return (
-    <svg
-      ref={svgRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "block",
-      }}
-    />
+    <div style={{ width: "100%", height: "100%", position: "relative", display: "flex", flexDirection: settings.legendPosition === "right" ? "row" : "column" }}>
+      <svg
+        ref={svgRef}
+        style={{
+          flex: 1,
+          display: "block",
+          minHeight: 0,
+        }}
+      />
+      {settings.showLegend && legendItems.length > 0 && (
+        <div className={`sankey-legend sankey-legend-${settings.legendPosition}`}>
+          {legendItems.map((item, i) => (
+            <div key={i} className="legend-item">
+              <span className="legend-swatch" style={{ backgroundColor: item.color }} />
+              <span className="legend-label">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div
+        className="export-button-container"
+        onMouseLeave={() => setShowExportMenu(false)}
+      >
+        <button
+          className="export-button"
+          onClick={() => setShowExportMenu(!showExportMenu)}
+          title="Export chart"
+        >
+          &#x2913;
+        </button>
+        {showExportMenu && (
+          <div className="export-menu">
+            <button onClick={handleExportSvg}>Export SVG</button>
+            <button onClick={handleExportPng}>Export PNG</button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

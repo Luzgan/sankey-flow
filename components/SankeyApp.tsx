@@ -60,6 +60,9 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
       if (value !== undefined) {
         if (typeof DEFAULT_SETTINGS[key] === "boolean") {
           (loaded as any)[key] = value === "true";
+        } else if (typeof DEFAULT_SETTINGS[key] === "number") {
+          const parsed = Number(value);
+          if (!isNaN(parsed)) (loaded as any)[key] = parsed;
         } else {
           (loaded as any)[key] = value;
         }
@@ -110,6 +113,8 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     loadSettingsFromTableau();
   }, [loadSettingsFromTableau]);
 
+  const [dataWarnings, setDataWarnings] = useState<string[]>([]);
+
   const handleRenderComplete = useCallback(
     (result: {
       hoveringLayer: any;
@@ -117,12 +122,14 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
       totalLinkValue: number;
       layoutLinks: SankeyLink[];
       hiddenLabelNodeIds: Set<number>;
+      dataWarnings: string[];
     }) => {
       setHoveringLayer(result.hoveringLayer);
       setLinksPerTupleId(result.linksPerTupleId);
       setTotalLinkValue(result.totalLinkValue);
       setLayoutLinks(result.layoutLinks);
       setHiddenLabelNodeIds(result.hiddenLabelNodeIds);
+      setDataWarnings(result.dataWarnings);
     },
     []
   );
@@ -197,7 +204,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     const handleClick = async (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onClick(e, selectedMarks, hoveredMarks, layoutLinks);
+      onClick(e, selectedMarks, hoveredMarks, layoutLinks, settings);
       await updateData(false);
     };
 
@@ -284,6 +291,15 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     return () => {};
   }, [worksheet, updateData]);
 
+  const handleDismissOnboarding = useCallback(() => {
+    TableauSettings.set("onboardingSeen", "true");
+    TableauSettings.save();
+    setSettings((prev) => ({ ...prev, onboardingSeen: true }));
+  }, []);
+
+  const showOnboarding = !settings.onboardingSeen && !isInitialLoading &&
+    validation && !validation.isValid;
+
   return (
     <>
       <div
@@ -295,12 +311,51 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
       >
         {isInitialLoading ? (
           <LoadingState />
+        ) : showOnboarding ? (
+          <div className="onboarding-overlay">
+            <div className="onboarding-card">
+              <h2 className="onboarding-title">Welcome to Sankey Chart</h2>
+              <div className="onboarding-steps">
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">1</div>
+                  <div>
+                    <strong>Add Levels</strong>
+                    <p>Drag at least 2 dimensions to the <em>Level</em> encoding to define columns</p>
+                  </div>
+                </div>
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">2</div>
+                  <div>
+                    <strong>Add a Measure</strong>
+                    <p>Drag a measure to the <em>Link</em> encoding to define flow sizes</p>
+                  </div>
+                </div>
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">3</div>
+                  <div>
+                    <strong>Color (optional)</strong>
+                    <p>Drag a dimension to <em>Color</em> for color-coded nodes</p>
+                  </div>
+                </div>
+              </div>
+              <button className="onboarding-dismiss" onClick={handleDismissOnboarding}>
+                Got it
+              </button>
+            </div>
+          </div>
         ) : validation && !validation.isValid ? (
           <ErrorState validation={validation} />
         ) : (
           <>
-            {validation && validation.warnings.length > 0 && (
-              <WarningBanner validation={validation} />
+            {((validation && validation.warnings.length > 0) || dataWarnings.length > 0) && (
+              <WarningBanner validation={{
+                isValid: true,
+                errors: [],
+                warnings: [
+                  ...(validation?.warnings || []),
+                  ...dataWarnings,
+                ],
+              }} />
             )}
             <SankeyChart
               summaryData={summaryData}

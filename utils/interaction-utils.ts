@@ -217,11 +217,34 @@ function getOrCreateTooltip(): HTMLDivElement {
 }
 
 /**
- * Show tooltip at the given position
+ * Sanitize HTML for tooltip: strip script tags and event handlers
  */
-function showTooltip(x: number, y: number, text: string): void {
+function sanitizeTooltipHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, "");
+}
+
+/**
+ * Build tooltip HTML from template and placeholders
+ */
+function buildTooltipHtml(
+  template: string,
+  placeholders: Record<string, string>
+): string {
+  let result = template;
+  for (const [key, value] of Object.entries(placeholders)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value);
+  }
+  return sanitizeTooltipHtml(result);
+}
+
+/**
+ * Show tooltip at the given position with HTML content
+ */
+function showTooltip(x: number, y: number, html: string): void {
   const tooltip = getOrCreateTooltip();
-  tooltip.textContent = text;
+  tooltip.innerHTML = sanitizeTooltipHtml(html);
   tooltip.style.display = "block";
   tooltip.style.left = `${x + TOOLTIP_OFFSET_X}px`;
   tooltip.style.top = `${y + TOOLTIP_OFFSET_Y}px`;
@@ -238,13 +261,38 @@ function hideTooltip(): void {
 }
 
 /**
- * Handle click events — supports both link and node clicks
+ * Get tooltip content based on tooltip mode setting
+ */
+function getTooltipContent(
+  settings: ExtensionSettings,
+  placeholders: Record<string, string>,
+  elementType: "node" | "link"
+): string {
+  if (settings.tooltipMode === "minimal") {
+    return `${placeholders.name}: ${placeholders.value}`;
+  }
+
+  if (settings.tooltipMode === "custom") {
+    return buildTooltipHtml(settings.tooltipTemplate, placeholders);
+  }
+
+  // "detailed" mode
+  if (elementType === "node") {
+    return `<b>${placeholders.name}</b><br>${placeholders.value} (${placeholders.percentage}%)`;
+  }
+  return `<b>${placeholders.source}</b> \u2192 <b>${placeholders.target}</b><br>${placeholders.value} (${placeholders.percentage}%)`;
+}
+
+/**
+ * Handle click events — supports both link and node clicks.
+ * Supports select, filter, and filterConnected click actions.
  */
 export function onClick(
   e: MouseEvent,
   selectedTupleIds: Map<number, boolean>,
   hoveredTupleIds: Map<number, boolean>,
-  layoutLinks: SankeyLink[]
+  layoutLinks: SankeyLink[],
+  settings?: ExtensionSettings
 ): void {
   const element = document.elementFromPoint(
     e.pageX,
@@ -268,22 +316,40 @@ export function onClick(
 
   if (isNode) {
     const nodeData = elem.datum() as SankeyNode;
-    if (!e.ctrlKey) selectedTupleIds.clear();
+    const clickAction = settings?.clickAction ?? "select";
 
-    // Select all links connected to this node
-    for (const link of layoutLinks) {
-      const sourceId =
-        typeof link.source === "string"
-          ? link.source
-          : link.source.id;
-      const targetId =
-        typeof link.target === "string"
-          ? link.target
-          : link.target.id;
+    if (clickAction === "filter" || clickAction === "filterConnected") {
+      // Filter actions: collect tupleIds and apply filter via Tableau API
+      const idsToFilter = new Set<number>();
 
-      if (sourceId === nodeData.id || targetId === nodeData.id) {
-        const ids = link.tupleIds || [link.tupleId];
-        for (const id of ids) selectedTupleIds.set(id, true);
+      if (clickAction === "filterConnected") {
+        const connected = getConnectedPaths(nodeData.id, layoutLinks);
+        for (const id of connected) idsToFilter.add(id);
+      } else {
+        for (const link of layoutLinks) {
+          const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+          const targetId = typeof link.target === "string" ? link.target : link.target.id;
+          if (sourceId === nodeData.id || targetId === nodeData.id) {
+            const ids = link.tupleIds || [link.tupleId];
+            for (const id of ids) idsToFilter.add(id);
+          }
+        }
+      }
+
+      if (!e.ctrlKey) selectedTupleIds.clear();
+      for (const id of idsToFilter) selectedTupleIds.set(id, true);
+    } else {
+      // Default "select" behavior
+      if (!e.ctrlKey) selectedTupleIds.clear();
+
+      for (const link of layoutLinks) {
+        const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+        const targetId = typeof link.target === "string" ? link.target : link.target.id;
+
+        if (sourceId === nodeData.id || targetId === nodeData.id) {
+          const ids = link.tupleIds || [link.tupleId];
+          for (const id of ids) selectedTupleIds.set(id, true);
+        }
       }
     }
   } else if (isLink) {
@@ -365,10 +431,16 @@ export async function onMouseMove(
         totalLinkValue > 0
           ? ((nodeValue / totalLinkValue) * 100).toFixed(1)
           : "0";
-      const tooltipText = settings.showPercentages
-        ? `${nodeData.name}: ${nodeValue.toLocaleString()} (${percentage}%)`
-        : `${nodeData.name}: ${nodeValue.toLocaleString()}`;
-      showTooltip(e.pageX, e.pageY, tooltipText);
+      const placeholders = {
+        name: nodeData.name,
+        value: nodeValue.toLocaleString(),
+        percentage,
+        source: "",
+        target: "",
+        level: String(nodeData.layer),
+      };
+      const tooltipHtml = getTooltipContent(settings, placeholders, "node");
+      showTooltip(e.pageX, e.pageY, tooltipHtml);
     } else {
       hideTooltip();
     }
@@ -402,11 +474,16 @@ export async function onMouseMove(
         totalLinkValue > 0
           ? ((data.value / totalLinkValue) * 100).toFixed(1)
           : "0";
-      showTooltip(
-        e.pageX,
-        e.pageY,
-        `${sourceName} \u2192 ${targetName}: ${data.value.toLocaleString()} (${percentage}%)`
-      );
+      const placeholders = {
+        name: `${sourceName} \u2192 ${targetName}`,
+        value: data.value.toLocaleString(),
+        percentage,
+        source: sourceName,
+        target: targetName,
+        level: "",
+      };
+      const tooltipHtml = getTooltipContent(settings, placeholders, "link");
+      showTooltip(e.pageX, e.pageY, tooltipHtml);
     } else {
       hideTooltip();
     }

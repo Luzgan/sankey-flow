@@ -6,6 +6,10 @@ import {
 import {
   ExtensionSettings,
   DEFAULT_SETTINGS,
+  NODE_PADDING_MIN,
+  NODE_PADDING_MAX,
+  NODE_WIDTH_MIN,
+  NODE_WIDTH_MAX,
 } from "../utils/constants";
 
 interface RadioOption {
@@ -45,6 +49,35 @@ const NODE_SORT_OPTIONS: RadioOption[] = [
   { value: "ascending", label: "Smallest at top", description: "Nodes with the lowest values appear first" },
   { value: "descending", label: "Largest at top", description: "Nodes with the highest values appear first" },
   { value: "alphabetical", label: "Alphabetical", description: "A\u2013Z ordering" },
+];
+
+const LABEL_ALIGN_OPTIONS: RadioOption[] = [
+  { value: "left", label: "Left", description: "Text aligned to the left edge of the node" },
+  { value: "center", label: "Center", description: "Text centered within the node" },
+  { value: "right", label: "Right", description: "Text aligned to the right edge of the node" },
+];
+
+const LABEL_VERTICAL_ALIGN_OPTIONS: RadioOption[] = [
+  { value: "top", label: "Top", description: "Labels near the top of each node" },
+  { value: "middle", label: "Middle", description: "Labels vertically centered" },
+  { value: "bottom", label: "Bottom", description: "Labels near the bottom of each node" },
+];
+
+const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
+  { value: "minimal", label: "Minimal", description: "Name and value only" },
+  { value: "detailed", label: "Detailed", description: "Name, value, percentage, and flow direction" },
+  { value: "custom", label: "Custom template", description: "Define your own HTML template with placeholders" },
+];
+
+const LEGEND_POSITION_OPTIONS: RadioOption[] = [
+  { value: "bottom", label: "Bottom", description: "Legend below the chart" },
+  { value: "right", label: "Right", description: "Legend to the right of the chart" },
+];
+
+const CLICK_ACTION_OPTIONS: RadioOption[] = [
+  { value: "select", label: "Select marks", description: "Highlight connected links in the chart" },
+  { value: "filter", label: "Filter node", description: "Filter dashboard to show only the clicked node\u2019s data" },
+  { value: "filterConnected", label: "Filter connected", description: "Filter dashboard to show all data flowing through the clicked node" },
 ];
 
 const SectionHeader: React.FC<{ title: string; first?: boolean }> = ({ title, first }) => (
@@ -95,6 +128,31 @@ const CheckboxOption: React.FC<{
       />
       {label}
     </label>
+    <div className="help-text">{description}</div>
+  </div>
+);
+
+const SliderOption: React.FC<{
+  label: string;
+  description: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}> = ({ label, description, value, min, max, onChange }) => (
+  <div className="form-group slider-group">
+    <div className="slider-header">
+      <span className="slider-label">{label}</span>
+      <span className="slider-value">{value}</span>
+    </div>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="slider-input"
+    />
     <div className="help-text">{description}</div>
   </div>
 );
@@ -163,6 +221,9 @@ export const ConfigurationApp: React.FC = () => {
           if (value !== undefined) {
             if (typeof DEFAULT_SETTINGS[key] === "boolean") {
               (loaded as any)[key] = value === "true";
+            } else if (typeof DEFAULT_SETTINGS[key] === "number") {
+              const parsed = Number(value);
+              if (!isNaN(parsed)) (loaded as any)[key] = parsed;
             } else {
               (loaded as any)[key] = value;
             }
@@ -269,6 +330,24 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("nodeSort", v as ExtensionSettings["nodeSort"])}
           options={NODE_SORT_OPTIONS}
         />
+        <SliderOption
+          label="Node spacing"
+          description="Vertical gap between nodes in the same column"
+          value={settings.nodePadding}
+          min={NODE_PADDING_MIN}
+          max={NODE_PADDING_MAX}
+          onChange={(v) => updateSetting("nodePadding", v)}
+        />
+        <SliderOption
+          label="Node width"
+          description="Horizontal width of each node rectangle"
+          value={settings.nodeWidth}
+          min={NODE_WIDTH_MIN}
+          max={NODE_WIDTH_MAX}
+          onChange={(v) => updateSetting("nodeWidth", v)}
+        />
+
+        <SectionHeader title="Labels" />
         <RadioGroup
           label="Label Position"
           name="labelPosition"
@@ -276,6 +355,24 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("labelPosition", v as ExtensionSettings["labelPosition"])}
           options={LABEL_POSITION_OPTIONS}
         />
+        {settings.labelPosition === "inside" && (
+          <>
+            <RadioGroup
+              label="Horizontal Alignment"
+              name="labelAlign"
+              value={settings.labelAlign}
+              onChange={(v) => updateSetting("labelAlign", v as ExtensionSettings["labelAlign"])}
+              options={LABEL_ALIGN_OPTIONS}
+            />
+            <RadioGroup
+              label="Vertical Alignment"
+              name="labelVerticalAlign"
+              value={settings.labelVerticalAlign}
+              onChange={(v) => updateSetting("labelVerticalAlign", v as ExtensionSettings["labelVerticalAlign"])}
+              options={LABEL_VERTICAL_ALIGN_OPTIONS}
+            />
+          </>
+        )}
 
         <SectionHeader title="Display" />
         <CheckboxOption
@@ -285,16 +382,85 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("showValues", v)}
         />
         <CheckboxOption
-          label="Show tooltips"
-          description="Show value and percentage when hovering over flows or nodes"
-          checked={settings.showPercentages}
-          onChange={(v) => updateSetting("showPercentages", v)}
+          label="Show labels on flows"
+          description="Display flow values along the link paths (only on wide links)"
+          checked={settings.showLinkLabels}
+          onChange={(v) => updateSetting("showLinkLabels", v)}
         />
         <CheckboxOption
           label="Combine duplicate flows"
           description="Merge flows between the same nodes into a single flow with summed values"
           checked={settings.aggregateLinks}
           onChange={(v) => updateSetting("aggregateLinks", v)}
+        />
+        <CheckboxOption
+          label="Ignore empty values"
+          description="Skip rows where any level field is null or empty"
+          checked={settings.ignoreNulls}
+          onChange={(v) => updateSetting("ignoreNulls", v)}
+        />
+        <CheckboxOption
+          label="Show legend"
+          description="Display a color legend for the chart"
+          checked={settings.showLegend}
+          onChange={(v) => updateSetting("showLegend", v)}
+        />
+        {settings.showLegend && (
+          <RadioGroup
+            label="Legend Position"
+            name="legendPosition"
+            value={settings.legendPosition}
+            onChange={(v) => updateSetting("legendPosition", v as ExtensionSettings["legendPosition"])}
+            options={LEGEND_POSITION_OPTIONS}
+          />
+        )}
+
+        <SectionHeader title="Tooltips" />
+        <CheckboxOption
+          label="Show tooltips"
+          description="Show value and percentage when hovering over flows or nodes"
+          checked={settings.showPercentages}
+          onChange={(v) => updateSetting("showPercentages", v)}
+        />
+        {settings.showPercentages && (
+          <>
+            <RadioGroup
+              label="Tooltip Style"
+              name="tooltipMode"
+              value={settings.tooltipMode}
+              onChange={(v) => updateSetting("tooltipMode", v as ExtensionSettings["tooltipMode"])}
+              options={TOOLTIP_MODE_OPTIONS}
+            />
+            {settings.tooltipMode === "custom" && (
+              <div className="form-group">
+                <div className="radio-group-label">Custom Template</div>
+                <textarea
+                  className="template-textarea"
+                  value={settings.tooltipTemplate}
+                  onChange={(e) => updateSetting("tooltipTemplate", e.target.value)}
+                  rows={4}
+                />
+                <div className="help-text">
+                  Placeholders: {"{name}"}, {"{value}"}, {"{percentage}"}, {"{source}"}, {"{target}"}, {"{level}"}. Basic HTML allowed.
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <SectionHeader title="Interaction" />
+        <RadioGroup
+          label="Click Behavior"
+          name="clickAction"
+          value={settings.clickAction}
+          onChange={(v) => updateSetting("clickAction", v as ExtensionSettings["clickAction"])}
+          options={CLICK_ACTION_OPTIONS}
+        />
+        <CheckboxOption
+          label="Enable node dragging"
+          description="Allow repositioning nodes by dragging (may conflict with click selection)"
+          checked={settings.enableDrag}
+          onChange={(v) => updateSetting("enableDrag", v)}
         />
       </div>
 
