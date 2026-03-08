@@ -5,49 +5,67 @@ import { LoadingState } from "./LoadingState";
 import { SankeyChart } from "./SankeyChart";
 import { ValidationResult } from "../utils/validation-utils";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
-import { TableauSettings, getTableauEventType } from "../utils/tableau-api-utils";
-
-interface ExtensionSettings {
-  colorScheme: "default" | "colorblind" | "monochrome";
-}
+import {
+  TableauSettings,
+  getTableauEventType,
+} from "../utils/tableau-api-utils";
+import {
+  ExtensionSettings,
+  DEFAULT_SETTINGS,
+} from "../utils/constants";
+import type { SankeyLink } from "../utils/sankey-utils";
 
 interface SankeyAppProps {
   worksheet: any;
   styles: any;
 }
 
-export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
-  // State management
+export const SankeyApp: React.FC<SankeyAppProps> = ({
+  worksheet,
+  styles,
+}) => {
   const [summaryData, setSummaryData] = useState<RowData[]>([]);
   const [encodingMap, setEncodingMap] = useState<EncodingMap>({});
-  const [selectedMarks, setSelectedMarks] = useState<Map<number, boolean>>(
-    new Map()
-  );
-  const [hoveredMarks, setHoveredMarks] = useState<Map<number, boolean>>(
-    new Map()
-  );
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [selectedMarks, setSelectedMarks] = useState<
+    Map<number, boolean>
+  >(new Map());
+  const [hoveredMarks, setHoveredMarks] = useState<
+    Map<number, boolean>
+  >(new Map());
+  const [validation, setValidation] =
+    useState<ValidationResult | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [hoveringLayer, setHoveringLayer] = useState<any>(null);
-  const [linksPerTupleId, setLinksPerTupleId] = useState<Map<number, any[]>>(
-    new Map()
+  const [linksPerTupleId, setLinksPerTupleId] = useState<
+    Map<number, any[]>
+  >(new Map());
+  const [totalLinkValue, setTotalLinkValue] = useState(0);
+  const [layoutLinks, setLayoutLinks] = useState<SankeyLink[]>([]);
+  const [hiddenLabelNodeIds, setHiddenLabelNodeIds] = useState<Set<number>>(
+    new Set()
   );
-  const [settings, setSettings] = useState<ExtensionSettings>({
-    colorScheme: "default",
-  });
+  const [settings, setSettings] =
+    useState<ExtensionSettings>(DEFAULT_SETTINGS);
 
-  // Dynamic imports
   const [functionsLoaded, setFunctionsLoaded] = useState(false);
-  const [importedFunctions, setImportedFunctions] = useState<any>(null);
+  const [importedFunctions, setImportedFunctions] =
+    useState<any>(null);
 
-  // Helper to load settings from Tableau
   const loadSettingsFromTableau = useCallback(() => {
-    const colorScheme = TableauSettings.get("colorScheme");
-    if (colorScheme) {
-      setSettings({
-        colorScheme: colorScheme as ExtensionSettings["colorScheme"],
-      });
+    const loaded: Partial<ExtensionSettings> = {};
+    for (const key of Object.keys(DEFAULT_SETTINGS) as Array<
+      keyof ExtensionSettings
+    >) {
+      const value = TableauSettings.get(key);
+      if (value !== undefined) {
+        if (typeof DEFAULT_SETTINGS[key] === "boolean") {
+          (loaded as any)[key] = value === "true";
+        } else {
+          (loaded as any)[key] = value;
+        }
+      }
     }
+    setSettings({ ...DEFAULT_SETTINGS, ...loaded });
   }, []);
 
   // Listen for settings changes
@@ -55,12 +73,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     const cleanup = TableauSettings.addChangeListener(() => {
       loadSettingsFromTableau();
     });
-    
+
     return cleanup;
   }, [loadSettingsFromTableau]);
 
   useEffect(() => {
-    // Dynamically import functions once
     const loadDependencies = async () => {
       try {
         const { getSummaryDataTable, getEncodingMap, getSelection } =
@@ -89,16 +106,23 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     loadDependencies();
   }, []);
 
-  // Load settings on component mount
   useEffect(() => {
     loadSettingsFromTableau();
   }, [loadSettingsFromTableau]);
 
-  // Render complete handler - CRITICAL: Must use useCallback to prevent infinite loops
   const handleRenderComplete = useCallback(
-    (result: { hoveringLayer: any; linksPerTupleId: Map<number, any[]> }) => {
+    (result: {
+      hoveringLayer: any;
+      linksPerTupleId: Map<number, any[]>;
+      totalLinkValue: number;
+      layoutLinks: SankeyLink[];
+      hiddenLabelNodeIds: Set<number>;
+    }) => {
       setHoveringLayer(result.hoveringLayer);
       setLinksPerTupleId(result.linksPerTupleId);
+      setTotalLinkValue(result.totalLinkValue);
+      setLayoutLinks(result.layoutLinks);
+      setHiddenLabelNodeIds(result.hiddenLabelNodeIds);
     },
     []
   );
@@ -116,13 +140,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         validateSankeyConfiguration,
       } = importedFunctions;
 
-      // Only show loading for initial load
       if (isInitial) {
         setIsInitialLoading(true);
       }
 
       try {
-        // Fetch data
         const [newSummaryData, newEncodingMap] = await Promise.all([
           getSummaryDataTable(worksheet),
           getEncodingMap(),
@@ -131,7 +153,6 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         setSummaryData(newSummaryData);
         setEncodingMap(newEncodingMap);
 
-        // Validate configuration
         const validationResult = validateSankeyConfiguration(
           newEncodingMap,
           newSummaryData
@@ -145,8 +166,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
           return;
         }
 
-        // Get selection
-        const newSelectedMarks = await getSelection(worksheet, newSummaryData);
+        const newSelectedMarks = await getSelection(
+          worksheet,
+          newSummaryData
+        );
         setSelectedMarks(newSelectedMarks);
       } catch (error) {
         console.error("Error updating data:", error);
@@ -161,7 +184,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
 
   useEffect(() => {
     if (worksheet && functionsLoaded) {
-      updateData(true); // Initial load - show loading
+      updateData(true);
     }
   }, [worksheet, functionsLoaded, updateData]);
 
@@ -174,20 +197,38 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     const handleClick = async (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onClick(e, selectedMarks, hoveredMarks);
-      await updateData(false); // User interaction - no loading
+      onClick(e, selectedMarks, hoveredMarks, layoutLinks);
+      await updateData(false);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onMouseMove(e, hoveredMarks, linksPerTupleId, hoveringLayer);
+      onMouseMove(
+        e,
+        hoveredMarks,
+        linksPerTupleId,
+        hoveringLayer,
+        settings,
+        totalLinkValue,
+        layoutLinks,
+        hiddenLabelNodeIds
+      );
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onMouseMove(e, hoveredMarks, linksPerTupleId, hoveringLayer);
+      onMouseMove(
+        e,
+        hoveredMarks,
+        linksPerTupleId,
+        hoveringLayer,
+        settings,
+        totalLinkValue,
+        layoutLinks,
+        hiddenLabelNodeIds
+      );
     };
 
     document.body.addEventListener("click", handleClick);
@@ -196,7 +237,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
 
     return () => {
       document.body.removeEventListener("click", handleClick);
-      document.body.removeEventListener("mousemove", handleMouseMove);
+      document.body.removeEventListener(
+        "mousemove",
+        handleMouseMove
+      );
       document.body.removeEventListener("mouseout", handleMouseOut);
     };
   }, [
@@ -207,6 +251,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     hoveredMarks,
     linksPerTupleId,
     hoveringLayer,
+    settings,
+    totalLinkValue,
+    layoutLinks,
+    hiddenLabelNodeIds,
     updateData,
   ]);
 
@@ -215,7 +263,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     if (!worksheet) return;
 
     const handleDataChange = () => {
-      updateData(false); // Data change - no loading
+      updateData(false);
     };
 
     const eventType = getTableauEventType();
@@ -232,23 +280,26 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         );
       };
     }
-    
-    // Return empty cleanup function if no event listener was added
+
     return () => {};
   }, [worksheet, updateData]);
 
   return (
     <>
-      {/* Always render the main container to preserve React tree */}
-      <div style={{ width: "100%", height: "100%", position: "fixed" }}>
-        {/* Conditional rendering within the same tree */}
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          position: "fixed",
+        }}
+      >
         {isInitialLoading ? (
           <LoadingState />
         ) : validation && !validation.isValid ? (
           <ErrorState validation={validation} />
         ) : (
           <>
-                        {validation && validation.warnings.length > 0 && (
+            {validation && validation.warnings.length > 0 && (
               <WarningBanner validation={validation} />
             )}
             <SankeyChart

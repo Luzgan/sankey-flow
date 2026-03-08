@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
-import { ExtensionSettings } from "./ConfigurationDialog";
+import { ExtensionSettings } from "../utils/constants";
+import type { SankeyLink, SankeyNode } from "../utils/sankey-utils";
 
 interface SankeyChartProps {
   summaryData: RowData[];
@@ -11,6 +12,9 @@ interface SankeyChartProps {
   onRenderComplete?: (result: {
     hoveringLayer: any;
     linksPerTupleId: Map<number, any[]>;
+    totalLinkValue: number;
+    layoutLinks: SankeyLink[];
+    hiddenLabelNodeIds: Set<number>;
   }) => void;
 }
 
@@ -29,23 +33,23 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
     const renderChart = async () => {
       if (!svgRef.current || !summaryData.length) return;
 
-      // Dynamically import the sankey utilities
-      const { Sankey } = await import("../utils/sankey-utils");
-      const { getEncodedData } = await import("../utils/sankey-utils");
+      const { Sankey, getEncodedData, resolveLabelsPostRender } = await import(
+        "../utils/sankey-utils"
+      );
 
-      // Clear previous content
       const svg = svgRef.current;
       svg.innerHTML = "";
 
-      // Get dimensions
       const width = svg.clientWidth || 800;
       const height = svg.clientHeight || 600;
 
       try {
-        // Get encoded data
-        const encodedData = getEncodedData(summaryData, encodingMap);
+        const encodedData = getEncodedData(
+          summaryData,
+          encodingMap,
+          settings
+        );
 
-        // Create Sankey visualization
         const sankey = await Sankey(
           encodedData,
           encodingMap,
@@ -56,17 +60,21 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           settings
         );
 
-        // Store reference for cleanup
         sankeyInstanceRef.current = sankey;
-
-        // Append to SVG
         svg.appendChild(sankey.viz);
 
-        // Notify parent component
+        const hiddenLabelNodeIds = resolveLabelsPostRender(
+          svg,
+          sankey.layoutNodes
+        );
+
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
             linksPerTupleId: sankey.linksPerTupleId,
+            totalLinkValue: sankey.totalLinkValue,
+            layoutLinks: sankey.layoutLinks,
+            hiddenLabelNodeIds,
           });
         }
       } catch (error) {
@@ -76,7 +84,6 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
 
     renderChart();
 
-    // Cleanup function
     return () => {
       if (svgRef.current) {
         svgRef.current.innerHTML = "";
@@ -95,21 +102,24 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   // Handle resize
   useEffect(() => {
     const handleResize = async () => {
-      console.log("handleResize");
       if (!svgRef.current || !sankeyInstanceRef.current) return;
 
-      // Re-render on resize
       const svg = svgRef.current;
       svg.innerHTML = "";
-      console.log(svg.clientHeight);
+
       const width = svg.clientWidth || 800;
       const height = svg.clientHeight || 600;
 
       try {
-        const { Sankey } = await import("../utils/sankey-utils");
-        const { getEncodedData } = await import("../utils/sankey-utils");
+        const { Sankey, getEncodedData, resolveLabelsPostRender } = await import(
+          "../utils/sankey-utils"
+        );
 
-        const encodedData = getEncodedData(summaryData, encodingMap);
+        const encodedData = getEncodedData(
+          summaryData,
+          encodingMap,
+          settings
+        );
 
         const sankey = await Sankey(
           encodedData,
@@ -124,10 +134,18 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
         sankeyInstanceRef.current = sankey;
         svg.appendChild(sankey.viz);
 
+        const hiddenLabelNodeIds = resolveLabelsPostRender(
+          svg,
+          sankey.layoutNodes
+        );
+
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
             linksPerTupleId: sankey.linksPerTupleId,
+            totalLinkValue: sankey.totalLinkValue,
+            layoutLinks: sankey.layoutLinks,
+            hiddenLabelNodeIds,
           });
         }
       } catch (error) {
@@ -136,7 +154,8 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
     };
 
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () =>
+      window.removeEventListener("resize", handleResize);
   }, [
     summaryData,
     encodingMap,

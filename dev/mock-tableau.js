@@ -26,8 +26,29 @@
     (listeners[type] || []).forEach((h) => h());
   }
 
-  // --- Settings store ---
-  const settingsStore = {};
+  // --- Settings store (synced via localStorage for cross-window communication) ---
+  const STORAGE_KEY = "sankey-ext-settings";
+
+  function loadSettingsFromStorage() {
+    try {
+      const json = localStorage.getItem(STORAGE_KEY);
+      return json ? JSON.parse(json) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  const settingsStore = loadSettingsFromStorage();
+
+  // Listen for changes from other windows (config dialog)
+  window.addEventListener("storage", (e) => {
+    if (e.key !== STORAGE_KEY) return;
+    const updated = loadSettingsFromStorage();
+    Object.keys(settingsStore).forEach((k) => delete settingsStore[k]);
+    Object.assign(settingsStore, updated);
+    console.log("[mock-tableau] Settings updated from another window:", settingsStore);
+    emit("settings-changed");
+  });
 
   const settings = {
     get(key) {
@@ -40,6 +61,7 @@
       return { ...settingsStore };
     },
     async saveAsync() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsStore));
       emit("settings-changed");
     },
     addEventListener(type, handler) {
@@ -129,6 +151,7 @@
 
   // --- Visual specification (encoding map) ---
   // Simulates: Source, Category, Target → Level encoding; Value → Edge encoding
+  // Optionally uses "Category" as color encoding
   function buildVisualSpec(columns) {
     // Assume last column is the measure (edge), rest are dimensions (levels)
     const levelColumns = columns.slice(0, -1);
@@ -152,6 +175,19 @@
         },
       },
     ];
+
+    // Use "Category" column as color encoding if it exists
+    const categoryCol = columns.find((c) => c.fieldName === "Category");
+    if (categoryCol) {
+      encodings.push({
+        id: "color",
+        field: {
+          name: categoryCol.fieldName,
+          index: categoryCol.index,
+          dataType: categoryCol.dataType,
+        },
+      });
+    }
 
     return {
       activeMarksSpecificationIndex: 0,

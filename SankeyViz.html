@@ -59,12 +59,7 @@
 
       .link {
         fill: none;
-        stroke-opacity: 0.6;
         cursor: pointer;
-      }
-
-      .link:hover {
-        stroke-opacity: 0.8;
       }
 
       .node {
@@ -177,6 +172,22 @@
         outline: none;
         border-color: #4e79a7;
         box-shadow: 0 0 0 2px rgba(78, 121, 167, 0.2);
+      }
+
+      .checkbox-group label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .checkbox-group input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #4e79a7;
+        cursor: pointer;
       }
 
       .help-text {

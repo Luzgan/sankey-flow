@@ -1,24 +1,53 @@
 import * as d3 from "d3";
-import { sankey, sankeyLinkHorizontal } from "d3-sankey";
-import { Field, DataValue } from "@tableau/extensions-api-types";
+import {
+  sankey,
+  sankeyLinkHorizontal,
+  sankeyJustify,
+  sankeyLeft,
+  sankeyRight,
+  sankeyCenter,
+} from "d3-sankey";
+import { Field } from "@tableau/extensions-api-types";
 import { EncodingMap, RowData } from "./tableau-utils";
-import { getColor, getLinkColor } from "./color-utils";
+import { getColor, getGradientId, getContrastingLabelColor } from "./color-utils";
 import {
   getSelectedNodes,
   getLinksPerTupleId,
   renderSelection,
 } from "./interaction-utils";
+import {
+  X_PADDING,
+  Y_PADDING,
+  LEVEL_WIDTH,
+  TOP_MARGIN,
+  LABEL_MARGIN,
+  LINK_OPACITY,
+  LINK_SELECTED_OPACITY,
+  LINK_FOGGED_OPACITY,
+  NODE_BORDER_COLOR,
+  NODE_BORDER_WIDTH,
+  LABEL_PADDING,
+  MIN_NODE_HEIGHT_FOR_VALUE,
+  LABEL_FONT_SIZE_DEFAULT,
+  LABEL_FONT_SIZE_MIN,
+  LABEL_COLLISION_PADDING,
+  ExtensionSettings,
+} from "./constants";
 
 export interface SankeyNode {
   id: string;
   name: string;
   layer: number;
   color: string;
+  colorValue?: string;
   x0?: number;
   x1?: number;
   y0?: number;
   y1?: number;
   index?: number;
+  value?: number;
+  sourceLinks?: SankeyLink[];
+  targetLinks?: SankeyLink[];
 }
 
 export interface SankeyLink {
@@ -26,6 +55,7 @@ export interface SankeyLink {
   target: string | SankeyNode;
   value: number;
   tupleId: number;
+  tupleIds?: number[];
   width?: number;
   y0?: number;
   y1?: number;
@@ -37,7 +67,7 @@ export interface EncodedData {
 }
 
 // Color palettes for different schemes
-export const colorPalettes = {
+export const colorPalettes: Record<string, string[]> = {
   default: [
     "#4e79a7",
     "#f28e2c",
@@ -51,33 +81,42 @@ export const colorPalettes = {
     "#bab0ab",
   ],
   colorblind: [
-    "#1f77b4", // blue
-    "#ff7f0e", // orange
-    "#2ca02c", // green
-    "#d62728", // red
-    "#9467bd", // purple
-    "#8c564b", // brown
-    "#e377c2", // pink
-    "#7f7f7f", // gray
-    "#bcbd22", // olive
-    "#17becf", // cyan
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
   ],
   monochrome: [
-    "#2c3e50", // dark blue-gray
-    "#34495e", // medium blue-gray
-    "#7f8c8d", // light blue-gray
-    "#95a5a6", // lighter blue-gray
-    "#bdc3c7", // very light blue-gray
-    "#d5dbdb", // pale blue-gray
-    "#ecf0f1", // off-white
-    "#f8f9fa", // white-gray
-    "#e8e8e8", // light gray
-    "#d0d0d0", // medium gray
+    "#2c3e50",
+    "#34495e",
+    "#7f8c8d",
+    "#95a5a6",
+    "#bdc3c7",
+    "#d5dbdb",
+    "#ecf0f1",
+    "#f8f9fa",
+    "#e8e8e8",
+    "#d0d0d0",
   ],
 };
 
-// Default palette for backward compatibility
 export const palette = colorPalettes.default;
+
+const NODE_ALIGNMENT_MAP: Record<
+  string,
+  (node: any, n: number) => number
+> = {
+  justify: sankeyJustify,
+  left: sankeyLeft,
+  right: sankeyRight,
+  center: sankeyCenter,
+};
 
 /**
  * Main Sankey visualization function
@@ -89,29 +128,38 @@ export async function Sankey(
   height: number,
   selectedTupleIds: Map<number, boolean>,
   styles: any,
-  settings: { colorScheme: "default" | "colorblind" | "monochrome" }
+  settings: ExtensionSettings
 ): Promise<{
   hoveringLayer: any;
   linksPerTupleId: Map<number, any[]>;
   viz: SVGElement;
+  totalLinkValue: number;
+  layoutLinks: SankeyLink[];
+  layoutNodes: SankeyNode[];
 }> {
-  const xPadding = 2;
-  const yPadding = 1;
-  const levelWidth = 100;
-  const top = 20;
-
   const layout = computeSankeyLayout(
     sankey,
     encodedData,
-    top,
+    TOP_MARGIN,
     width,
     height,
-    levelWidth + xPadding * 2,
-    yPadding,
+    LEVEL_WIDTH + X_PADDING * 2,
+    Y_PADDING,
     settings
   );
 
-  // Create an SVG container
+  const totalLinkValue = layout.links.reduce(
+    (sum: number, l: SankeyLink) => sum + l.value,
+    0
+  );
+
+  const maxLayer = layout.nodes.length > 0
+    ? Math.max(...layout.nodes.map((n: SankeyNode) => n.layer))
+    : 0;
+
+  const selectedNodeIndexes = getSelectedNodes(layout.links, selectedTupleIds);
+
+  // Create SVG container
   const svg = d3
     .create("svg")
     .attr("class", tableau.ClassNameKey.Worksheet)
@@ -123,56 +171,125 @@ export async function Sankey(
     .attr("font-weight", styles?.fontWeight || "normal")
     .attr("font-size", styles?.fontSize || "12px")
     .attr("font-style", styles?.fontStyle || "normal")
-    .attr("text-decoration", styles?.textDecoration || "none");
+    .attr("text-decoration", styles?.textDecoration || "none")
+    .attr("role", "img")
+    .attr(
+      "aria-label",
+      `Sankey diagram with ${layout.nodes.length} nodes across ${maxLayer + 1} levels showing flow values`
+    );
 
-  const selectedNodeIndexes = getSelectedNodes(layout.links, selectedTupleIds);
+  // Add gradient definitions for gradient link style
+  if (settings.linkStyle === "gradient") {
+    const defs = svg.append("defs");
+    const gradientIds = new Set<string>();
 
-  // Create the rects that represent the nodes
+    layout.links.forEach((link: SankeyLink) => {
+      const source = link.source as SankeyNode;
+      const target = link.target as SankeyNode;
+      const gradId = getGradientId(source.id, target.id);
+
+      if (gradientIds.has(gradId)) return;
+      gradientIds.add(gradId);
+
+      const gradient = defs
+        .append("linearGradient")
+        .attr("id", gradId)
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", source.x1 || 0)
+        .attr("x2", target.x0 || 0);
+
+      gradient
+        .append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", source.color);
+
+      gradient
+        .append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", target.color);
+    });
+  }
+
+  // Create node rects
   svg
     .append("g")
     .selectAll()
     .data(layout.nodes)
     .join("rect")
     .attr("class", "node")
-    .attr("x", (d: SankeyNode) => (d.x0 || 0) + xPadding)
+    .attr("x", (d: SankeyNode) => (d.x0 || 0) + X_PADDING)
     .attr("y", (d: SankeyNode) => d.y0 || 0)
     .attr("height", (d: SankeyNode) => (d.y1 || 0) - (d.y0 || 0))
-    .attr("width", (d: SankeyNode) => (d.x1 || 0) - (d.x0 || 0) - xPadding * 2)
+    .attr(
+      "width",
+      (d: SankeyNode) => (d.x1 || 0) - (d.x0 || 0) - X_PADDING * 2
+    )
     .attr("fill", (d: SankeyNode, index: number) =>
       getColor(d.color, selectedTupleIds, selectedNodeIndexes.has(index))
     )
-    .attr("stroke", "#000")
-    .attr("stroke-width", 1);
+    .attr("stroke", NODE_BORDER_COLOR)
+    .attr("stroke-width", NODE_BORDER_WIDTH);
 
-  // Create the paths that represent the links
+  // Create link paths
   const links = svg
     .append("g")
-    .attr("fill-opacity", 0.5)
     .style("cursor", "pointer")
     .selectAll()
     .data(layout.links)
     .join("path")
     .attr("class", "link")
     .attr("d", getLinkPath)
-    .attr("fill", (d: SankeyLink) => getLinkColor(d, selectedTupleIds))
-    .attr("stroke", (d: SankeyLink) => getLinkColor(d, selectedTupleIds))
+    .attr("stroke", (d: SankeyLink) =>
+      getLinkStroke(d, settings.linkStyle)
+    )
+    .style("stroke-opacity", (d: SankeyLink) =>
+      getLinkOpacity(d, selectedTupleIds)
+    )
     .attr("stroke-width", (d: SankeyLink) => Math.max(1, d.width || 1));
 
-  // Add labels on the nodes
+  // Add node labels at natural positions (collision resolved post-render)
   svg
     .append("g")
     .selectAll()
     .data(layout.nodes)
     .join("text")
     .attr("class", "node-label")
-    .attr("x", (d: SankeyNode) => ((d.x1 || 0) + (d.x0 || 0)) / 2)
+    .attr("x", (d: SankeyNode) =>
+      getNodeLabelX(d, maxLayer, settings.labelPosition)
+    )
     .attr("y", (d: SankeyNode) => ((d.y1 || 0) + (d.y0 || 0)) / 2)
-    .attr("dy", "0.35em")
-    .attr("text-anchor", "middle")
+    .attr("dy", (d: SankeyNode) => {
+      const nodeHeight = (d.y1 || 0) - (d.y0 || 0);
+      const hasValue = settings.showValues && nodeHeight >= MIN_NODE_HEIGHT_FOR_VALUE;
+      return hasValue ? "-0.1em" : "0.35em";
+    })
+    .attr("text-anchor", (d: SankeyNode) =>
+      getNodeLabelAnchor(d, maxLayer, settings.labelPosition)
+    )
     .text((d: SankeyNode) => d.name)
-    .attr("fill", (d: SankeyNode, index: number) =>
-      getColor("black", selectedTupleIds, selectedNodeIndexes.has(index))
-    );
+    .attr("fill", (d: SankeyNode, index: number) => {
+      const baseColor = isLabelOnNode(d, maxLayer, settings.labelPosition)
+        ? getContrastingLabelColor(d.color)
+        : "black";
+      return getColor(baseColor, selectedTupleIds, selectedNodeIndexes.has(index));
+    })
+    .each(function (this: SVGTextElement | null, d: SankeyNode) {
+      if (!this) return;
+      const nodeHeight = (d.y1 || 0) - (d.y0 || 0);
+      if (!settings.showValues || nodeHeight < MIN_NODE_HEIGHT_FOR_VALUE) return;
+
+      const nodeValue = d.value || 0;
+      d3.select(this)
+        .append("tspan")
+        .attr(
+          "x",
+          getNodeLabelX(d, maxLayer, settings.labelPosition)
+        )
+        .attr("dy", "1.2em")
+        .attr("font-size", "10px")
+        .attr("fill-opacity", 0.7)
+        .text(nodeValue.toLocaleString());
+    });
 
   // Add top labels for levels
   if (encodingMap.level) {
@@ -190,7 +307,7 @@ export async function Sankey(
       .attr("x", (d: SankeyNode | undefined) =>
         d ? ((d.x1 || 0) + (d.x0 || 0)) / 2 : 0
       )
-      .attr("y", top / 2)
+      .attr("y", TOP_MARGIN / 2)
       .attr("text-anchor", "middle")
       .text((d: SankeyNode | undefined) =>
         d ? encodingMap.level![d.layer].name : ""
@@ -198,9 +315,9 @@ export async function Sankey(
       .attr("fill", styles?.color || "#333");
   }
 
-  // Container for rendering selected elements (rendered last)
-  const selectionLayer = svg.append("g");
-  const hoveringLayer = svg.append("g");
+  // Selection and hovering layers (decorative)
+  const selectionLayer = svg.append("g").attr("aria-hidden", "true");
+  const hoveringLayer = svg.append("g").attr("aria-hidden", "true");
 
   const linksPerTupleId = getLinksPerTupleId(links);
 
@@ -215,7 +332,201 @@ export async function Sankey(
     hoveringLayer,
     linksPerTupleId,
     viz: svg.node()!,
+    totalLinkValue,
+    layoutLinks: layout.links,
+    layoutNodes: layout.nodes,
   };
+}
+
+/**
+ * Get link stroke color or gradient URL
+ */
+function getLinkStroke(link: SankeyLink, linkStyle: string): string {
+  const source = link.source as SankeyNode;
+  const target = link.target as SankeyNode;
+
+  switch (linkStyle) {
+    case "gradient":
+      return `url(#${getGradientId(source.id, target.id)})`;
+    case "target":
+      return target.color;
+    case "source":
+    default:
+      return source.color;
+  }
+}
+
+/**
+ * Get link opacity based on selection state
+ */
+function getLinkOpacity(
+  link: SankeyLink,
+  selectedTupleIds: Map<number, boolean>
+): number {
+  if (selectedTupleIds.size === 0) return LINK_OPACITY;
+
+  const ids = link.tupleIds || [link.tupleId];
+  const isSelected = ids.some((id) => selectedTupleIds.has(id));
+  return isSelected ? LINK_SELECTED_OPACITY : LINK_FOGGED_OPACITY;
+}
+
+/**
+ * Get node label X position based on layer and label position setting
+ */
+function getNodeLabelX(
+  node: SankeyNode,
+  maxLayer: number,
+  labelPosition: string
+): number {
+  const midX = ((node.x1 || 0) + (node.x0 || 0)) / 2;
+
+  if (labelPosition === "inside") return midX;
+
+  // "auto" and "outside" use the same adaptive logic
+  if (node.layer === 0) return (node.x0 || 0) - LABEL_PADDING;
+  if (node.layer === maxLayer) return (node.x1 || 0) + LABEL_PADDING;
+  return midX;
+}
+
+/**
+ * Get node label text-anchor based on layer and label position setting
+ */
+function getNodeLabelAnchor(
+  node: SankeyNode,
+  maxLayer: number,
+  labelPosition: string
+): string {
+  if (labelPosition === "inside") return "middle";
+
+  // "auto" and "outside" use the same adaptive logic
+  if (node.layer === 0) return "end";
+  if (node.layer === maxLayer) return "start";
+  return "middle";
+}
+
+/**
+ * Whether a label is rendered on top of its node rectangle.
+ */
+function isLabelOnNode(
+  node: SankeyNode,
+  maxLayer: number,
+  labelPosition: string
+): boolean {
+  if (labelPosition === "inside") return true;
+  // "auto" and "outside" place middle-layer labels at midX (centered on node)
+  return node.layer !== 0 && node.layer !== maxLayer;
+}
+
+/**
+ * Post-render collision detection for node labels.
+ * Groups labels by layer, tries font scaling first, then hides
+ * lower-priority (smaller node value) labels that still collide.
+ * Must be called after the SVG is in the DOM so getBBox() works.
+ */
+export function resolveLabelsPostRender(
+  svgElement: SVGSVGElement,
+  nodes: SankeyNode[]
+): Set<number> {
+  const hiddenNodeIndices = new Set<number>();
+  const svg = d3.select(svgElement);
+  const labelElements = svg.selectAll<SVGTextElement, SankeyNode>(".node-label");
+
+  if (labelElements.empty()) return hiddenNodeIndices;
+
+  // Group labels by layer
+  const byLayer = new Map<number, { el: SVGTextElement; node: SankeyNode }[]>();
+  labelElements.each(function (this: SVGTextElement | null, d: SankeyNode) {
+    if (!this) return;
+    const layer = d.layer;
+    if (!byLayer.has(layer)) byLayer.set(layer, []);
+    byLayer.get(layer)!.push({ el: this, node: d });
+  });
+
+  for (const [, layerLabels] of byLayer) {
+    if (layerLabels.length <= 1) continue;
+
+    // Sort by node value descending — larger nodes have higher priority
+    const sorted = [...layerLabels].sort(
+      (a, b) => (b.node.value || 0) - (a.node.value || 0)
+    );
+
+    // Try reducing font size to resolve collisions
+    let fontSize = LABEL_FONT_SIZE_DEFAULT;
+    let hasCollisions = true;
+
+    while (hasCollisions && fontSize >= LABEL_FONT_SIZE_MIN) {
+      // Apply font size to all labels in this layer
+      for (const item of sorted) {
+        item.el.style.fontSize = `${fontSize}px`;
+      }
+
+      hasCollisions = detectCollisions(sorted.map((s) => s.el));
+      if (hasCollisions && fontSize > LABEL_FONT_SIZE_MIN) {
+        fontSize--;
+      } else {
+        break;
+      }
+    }
+
+    // If still collisions at min font, hide lower-priority labels
+    if (hasCollisions) {
+      hideCollidingLabels(sorted, hiddenNodeIndices);
+    }
+  }
+
+  return hiddenNodeIndices;
+}
+
+/**
+ * Check if any labels in the list collide (by Y-sorted bounding boxes)
+ */
+function detectCollisions(elements: SVGTextElement[]): boolean {
+  // Sort by Y position for pairwise check
+  const withBbox = elements
+    .filter((el) => el.style.display !== "none")
+    .map((el) => ({ el, bbox: el.getBBox() }))
+    .sort((a, b) => a.bbox.y - b.bbox.y);
+
+  for (let i = 0; i < withBbox.length - 1; i++) {
+    const current = withBbox[i].bbox;
+    const next = withBbox[i + 1].bbox;
+    if (current.y + current.height + LABEL_COLLISION_PADDING > next.y) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Hide lower-priority labels that collide with higher-priority ones.
+ * Sorted input: highest priority (largest value) first.
+ */
+function hideCollidingLabels(
+  sorted: { el: SVGTextElement; node: SankeyNode }[],
+  hiddenNodeIndices: Set<number>
+): void {
+  // Keep track of visible label bounding boxes
+  const visibleBboxes: DOMRect[] = [];
+
+  for (const item of sorted) {
+    const bbox = item.el.getBBox();
+    const rect = new DOMRect(bbox.x, bbox.y, bbox.width, bbox.height);
+
+    const collides = visibleBboxes.some(
+      (vb) =>
+        rect.y < vb.y + vb.height + LABEL_COLLISION_PADDING &&
+        rect.y + rect.height + LABEL_COLLISION_PADDING > vb.y
+    );
+
+    if (collides) {
+      item.el.style.display = "none";
+      if (item.node.index !== undefined) {
+        hiddenNodeIndices.add(item.node.index);
+      }
+    } else {
+      visibleBboxes.push(rect);
+    }
+  }
 }
 
 /**
@@ -223,7 +534,8 @@ export async function Sankey(
  */
 export function getEncodedData(
   data: RowData[],
-  encodingMap: EncodingMap
+  encodingMap: EncodingMap,
+  settings: ExtensionSettings
 ): EncodedData {
   const nodes: SankeyNode[] = [];
   const links: SankeyLink[] = [];
@@ -239,7 +551,6 @@ export function getEncodedData(
       const levelField = encodingMap.level[levelIndex];
       nodesPerLevel.set(levelIndex, new Map());
 
-      // Get unique values for this level
       const uniqueValues = new Set<string>();
       for (const row of data) {
         if (row[levelField.name]) {
@@ -247,7 +558,6 @@ export function getEncodedData(
         }
       }
 
-      // Create nodes for this level
       for (const value of uniqueValues) {
         const nodeId = `${levelIndex}-${value}`;
         const node: SankeyNode = {
@@ -262,6 +572,48 @@ export function getEncodedData(
     }
   }
 
+  // Color encoding: assign colorValue to nodes
+  if (
+    encodingMap.color &&
+    encodingMap.color.length > 0 &&
+    encodingMap.level
+  ) {
+    const colorField = encodingMap.color[0];
+    const nodeColorCounts = new Map<string, Map<string, number>>();
+
+    for (const row of data) {
+      const colorVal = row[colorField.name]?.value?.toString();
+      if (!colorVal) continue;
+
+      for (let li = 0; li < encodingMap.level.length; li++) {
+        const lf = encodingMap.level[li];
+        const nv = row[lf.name]?.value?.toString();
+        if (!nv) continue;
+        const nodeId = `${li}-${nv}`;
+
+        if (!nodeColorCounts.has(nodeId))
+          nodeColorCounts.set(nodeId, new Map());
+        const counts = nodeColorCounts.get(nodeId)!;
+        counts.set(colorVal, (counts.get(colorVal) || 0) + 1);
+      }
+    }
+
+    for (const node of nodes) {
+      const counts = nodeColorCounts.get(node.id);
+      if (!counts) continue;
+
+      let maxCount = 0;
+      let dominant = "";
+      for (const [cv, count] of counts) {
+        if (count > maxCount) {
+          maxCount = count;
+          dominant = cv;
+        }
+      }
+      node.colorValue = dominant;
+    }
+  }
+
   // Process edge encodings to create links
   if (encodingMap.edge && encodingMap.level && encodingMap.level.length >= 2) {
     for (const row of data) {
@@ -269,7 +621,6 @@ export function getEncodedData(
       const edgeValue = getLinkValue(row, edgeField);
 
       if (edgeValue > 0) {
-        // Create links between consecutive levels
         for (
           let levelIndex = 0;
           levelIndex < encodingMap.level.length - 1;
@@ -282,19 +633,20 @@ export function getEncodedData(
           const targetValue = row[targetField.name]?.value?.toString();
 
           if (sourceValue && targetValue) {
-            const sourceNode = nodesPerLevel.get(levelIndex)?.get(sourceValue);
+            const sourceNode = nodesPerLevel
+              .get(levelIndex)
+              ?.get(sourceValue);
             const targetNode = nodesPerLevel
               .get(levelIndex + 1)
               ?.get(targetValue);
 
             if (sourceNode && targetNode) {
-              const link: SankeyLink = {
+              links.push({
                 source: sourceNode.id,
                 target: targetNode.id,
                 value: edgeValue,
                 tupleId: row.tupleId,
-              };
-              links.push(link);
+              });
             }
           }
         }
@@ -302,11 +654,37 @@ export function getEncodedData(
     }
   }
 
+  if (settings.aggregateLinks) {
+    return { nodes, links: aggregateLinks(links) };
+  }
+
   return { nodes, links };
 }
 
 /**
- * Compute Sankey layout
+ * Aggregate links with the same source-target pair
+ */
+function aggregateLinks(links: SankeyLink[]): SankeyLink[] {
+  const linkMap = new Map<string, SankeyLink>();
+
+  for (const link of links) {
+    const key = `${link.source}\x00${link.target}`;
+    const existing = linkMap.get(key);
+
+    if (existing) {
+      existing.value += link.value;
+      if (!existing.tupleIds) existing.tupleIds = [existing.tupleId];
+      existing.tupleIds.push(link.tupleId);
+    } else {
+      linkMap.set(key, { ...link, tupleIds: [link.tupleId] });
+    }
+  }
+
+  return [...linkMap.values()];
+}
+
+/**
+ * Compute Sankey layout with alignment and sort settings
  */
 export function computeSankeyLayout(
   d3Sankey: any,
@@ -316,31 +694,80 @@ export function computeSankeyLayout(
   height: number,
   nodeWidth: number,
   padding: number,
-  settings: { colorScheme: "default" | "colorblind" | "monochrome" }
+  settings: ExtensionSettings
 ): EncodedData {
   const { nodes, links } = data;
 
-  // Create Sankey generator
+  const alignFn =
+    NODE_ALIGNMENT_MAP[settings.nodeAlignment] || sankeyJustify;
+
+  // Reserve horizontal space for outside labels on first/last columns
+  const hasOutsideLabels = settings.labelPosition !== "inside";
+  const xStart = hasOutsideLabels ? LABEL_MARGIN : 1;
+  const xEnd = hasOutsideLabels ? width - LABEL_MARGIN : width - 1;
+
   const sankeyGenerator = d3Sankey()
     .nodeWidth(nodeWidth)
     .nodePadding(padding)
-
-    // .nodeSort(d)
+    .nodeAlign(alignFn)
     .nodeId((d: SankeyNode) => d.id)
     .extent([
-      [1, top],
-      [width - 1, height - 5],
+      [xStart, top],
+      [xEnd, height - 5],
     ]);
 
-  // Generate the layout
+  // Apply node sort
+  if (settings.nodeSort === "ascending") {
+    sankeyGenerator.nodeSort(
+      (a: any, b: any) => (a.value || 0) - (b.value || 0)
+    );
+  } else if (settings.nodeSort === "descending") {
+    sankeyGenerator.nodeSort(
+      (a: any, b: any) => (b.value || 0) - (a.value || 0)
+    );
+  } else if (settings.nodeSort === "alphabetical") {
+    sankeyGenerator.nodeSort(
+      (a: any, b: any) => (a.name || "").localeCompare(b.name || "")
+    );
+  }
+  // "auto" = no nodeSort set (d3 default)
+
   const layout = sankeyGenerator({ nodes, links });
 
-  // Add colors to nodes
-  // Get the appropriate color palette based on settings
-  const selectedPalette = colorPalettes[settings.colorScheme];
+  // Assign colors based on color encoding or level
+  let selectedPalette: string[] =
+    colorPalettes[settings.colorScheme as keyof typeof colorPalettes] || colorPalettes.default;
+
+  if (settings.colorScheme === "custom") {
+    try {
+      const parsed: unknown = JSON.parse(settings.customColors);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        selectedPalette = parsed as string[];
+      }
+    } catch {
+      // fallback to default palette
+    }
+  }
+
+  const uniqueColorValues = [
+    ...new Set(
+      layout.nodes
+        .map((n: SankeyNode) => n.colorValue)
+        .filter(Boolean) as string[]
+    ),
+  ].sort();
+
+  const hasColorEncoding = uniqueColorValues.length > 0;
 
   layout.nodes.forEach((node: SankeyNode) => {
-    node.color = selectedPalette[node.layer % selectedPalette.length];
+    if (hasColorEncoding && node.colorValue) {
+      const colorIndex = uniqueColorValues.indexOf(node.colorValue);
+      node.color =
+        selectedPalette[colorIndex % selectedPalette.length];
+    } else {
+      node.color =
+        selectedPalette[node.layer % selectedPalette.length];
+    }
   });
 
   return layout;
@@ -359,7 +786,7 @@ export function getLinkPath(d: SankeyLink): string {
  */
 export function getLinkValue(row: RowData, hasLinks: Field): number {
   if (!hasLinks || !row[hasLinks.name]) {
-    return 1; // Default value if no edge field is specified
+    return 1;
   }
 
   const value = row[hasLinks.name].value;
@@ -374,16 +801,19 @@ export async function renderViz(
   encodingMap: EncodingMap,
   selectedMarksIds: Map<number, boolean>,
   styles: any,
-  settings: { colorScheme: "default" | "colorblind" | "monochrome" }
-): Promise<{ hoveringLayer: any; linksPerTupleId: Map<number, any[]> }> {
-  const encodedData = getEncodedData(rawData, encodingMap);
+  settings: ExtensionSettings
+): Promise<{
+  hoveringLayer: any;
+  linksPerTupleId: Map<number, any[]>;
+}> {
+  const encodedData = getEncodedData(rawData, encodingMap, settings);
 
   const content = document.getElementById("content");
   if (!content) throw new Error("Content element not found");
 
   content.innerHTML = "";
 
-  const sankey = await Sankey(
+  const result = await Sankey(
     encodedData,
     encodingMap,
     content.offsetWidth,
@@ -393,7 +823,7 @@ export async function renderViz(
     settings
   );
 
-  content.appendChild(sankey.viz);
+  content.appendChild(result.viz);
 
-  return sankey;
+  return result;
 }

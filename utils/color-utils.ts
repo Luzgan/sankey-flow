@@ -1,49 +1,33 @@
-import * as d3 from "d3";
 import tinycolor from "tinycolor2";
-import { SankeyLink } from "./sankey-utils";
+import { SELECTION_BLEND_FACTOR } from "./constants";
 
 const backgroundColor = tinycolor("white");
 
 /**
- * Get link color
- */
-export function getLinkColor(
-  link: SankeyLink,
-  selectedTupleIds: Map<number, boolean>
-): string {
-  const sourceId =
-    typeof link.source === "string" ? link.source : link.source.id;
-  const color = d3.scaleOrdinal(d3.schemeCategory10);
-  const baseColor = color(sourceId);
-
-  if (selectedTupleIds.has(link.tupleId)) {
-    return baseColor;
-  } else {
-    return computeFoggedBackgroundColor(baseColor, 0.3);
-  }
-}
-
-/**
- * Get color with selection handling
+ * Get color with selection-based fogging
  */
 export function getColor(
   color: string | number,
   selectedTupleIds: Map<number, boolean>,
   doNotFog: boolean
 ): string {
-  if (doNotFog) {
+  if (doNotFog || selectedTupleIds.size === 0) {
     return color.toString();
   }
 
-  if (selectedTupleIds.size === 0) {
-    return color.toString();
-  }
-
-  return computeFoggedBackgroundColor(color.toString(), 0.3);
+  return computeFoggedBackgroundColor(color.toString(), SELECTION_BLEND_FACTOR);
 }
 
 /**
- * Compute fogged background color
+ * Generate a CSS-safe gradient ID from source and target node IDs
+ */
+export function getGradientId(sourceId: string, targetId: string): string {
+  const safe = (s: string): string => s.replace(/[^a-zA-Z0-9]/g, "_");
+  return `grad-${safe(sourceId)}-${safe(targetId)}`;
+}
+
+/**
+ * Compute fogged background color by blending with fog
  */
 export function computeFoggedBackgroundColor(
   color: string,
@@ -56,17 +40,16 @@ export function computeFoggedBackgroundColor(
 }
 
 /**
- * Calculate fog color
+ * Calculate fog color (opposite luminance)
  */
-export function calculateFogColor(colorStr: any): string {
-  const color = tinycolor(colorStr);
-  return color.isLight() ? "#000000" : "#ffffff";
+export function calculateFogColor(colorStr: tinycolor.Instance): string {
+  return colorStr.isLight() ? "#000000" : "#ffffff";
 }
 
 /**
- * Get fog blend factor
+ * Return a label color that contrasts with the given background.
+ * Used when labels are rendered on top of node rectangles.
  */
-export function getFogBlendFactor(color: string): number {
-  const colorObj = tinycolor(color);
-  return colorObj.isLight() ? 0.3 : 0.7;
+export function getContrastingLabelColor(bgColor: string): string {
+  return tinycolor(bgColor).isLight() ? "#000000" : "#ffffff";
 }

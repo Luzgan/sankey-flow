@@ -1,26 +1,42 @@
 import * as d3 from "d3";
 import { SankeyLink, SankeyNode } from "./sankey-utils";
-import { selectTuples, clearHoveredMarks, getWorksheet } from "./tableau-utils";
+import {
+  selectTuples,
+  clearHoveredMarks,
+  getWorksheet,
+} from "./tableau-utils";
+import {
+  ExtensionSettings,
+  TOOLTIP_OFFSET_X,
+  TOOLTIP_OFFSET_Y,
+} from "./constants";
 
 /**
- * Get links per tuple ID for selection handling
+ * Get links per tuple ID for selection handling.
+ * Handles both individual and aggregated links.
  */
 export function getLinksPerTupleId(links: any): Map<number, any[]> {
   const linksPerTupleId = new Map<number, any[]>();
+
   links.each(function (this: any, d: SankeyLink) {
-    let list = linksPerTupleId.get(d.tupleId);
-    if (!list) {
-      list = [];
-      linksPerTupleId.set(d.tupleId, list);
+    const ids = d.tupleIds || [d.tupleId];
+    const selection = d3.select(this);
+
+    for (const id of ids) {
+      let list = linksPerTupleId.get(id);
+      if (!list) {
+        list = [];
+        linksPerTupleId.set(id, list);
+      }
+      list.push(selection);
     }
-    list.push(d3.select(this));
   });
 
   return linksPerTupleId;
 }
 
 /**
- * Get selected nodes from selected links
+ * Get selected node indexes from selected links
  */
 export function getSelectedNodes(
   links: SankeyLink[],
@@ -29,9 +45,14 @@ export function getSelectedNodes(
   const selectedNodeIndexes = new Map<number, boolean>();
 
   for (const link of links) {
-    if (selectedTupleIds.has(link.tupleId)) {
-      const sourceNode = typeof link.source === "string" ? null : link.source;
-      const targetNode = typeof link.target === "string" ? null : link.target;
+    const ids = link.tupleIds || [link.tupleId];
+    const isSelected = ids.some((id) => selectedTupleIds.has(id));
+
+    if (isSelected) {
+      const sourceNode =
+        typeof link.source === "string" ? null : link.source;
+      const targetNode =
+        typeof link.target === "string" ? null : link.target;
 
       if (sourceNode && sourceNode.index !== undefined) {
         selectedNodeIndexes.set(sourceNode.index, true);
@@ -68,19 +89,19 @@ export function renderSelection(
 
   let outline = selectionLayer.selectAll("g.selectionOutline");
 
-  // Render the outline first (to dissolve selected elements borders)
   if (outline.empty()) {
-    outline = selectionLayer.append("g").attr("class", "selectionOutline");
+    outline = selectionLayer
+      .append("g")
+      .attr("class", "selectionOutline");
   }
 
   outline
     .selectAll()
     .data(selectedLinks)
     .join("path")
-    .attr("d", (link: any) => link.attr("d")) // Copy path geometry from the 'normal' element
-    .datum((link: any) => link.datum()); // Bind data from the 'normal' element
+    .attr("d", (link: any) => link.attr("d"))
+    .datum((link: any) => link.datum());
 
-  // Render filled elements without borders
   let fill = selectionLayer.selectAll("g.selection");
 
   if (fill.empty()) {
@@ -91,8 +112,8 @@ export function renderSelection(
     .selectAll()
     .data(selectedLinks)
     .join("path")
-    .attr("d", (link: any) => link.attr("d")) // Copy path geometry from the 'normal' element
-    .datum((link: any) => link.datum()); // Bind data from the 'normal' element
+    .attr("d", (link: any) => link.attr("d"))
+    .datum((link: any) => link.datum());
 }
 
 /**
@@ -124,71 +145,288 @@ export function renderHoveredElements(
 }
 
 /**
- * Handle click events
+ * Find all connected paths from a node via BFS
+ */
+export function getConnectedPaths(
+  nodeId: string,
+  links: SankeyLink[]
+): Set<number> {
+  const visitedNodes = new Set<string>();
+  const tupleIds = new Set<number>();
+  const queue = [nodeId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visitedNodes.has(currentId)) continue;
+    visitedNodes.add(currentId);
+
+    for (const link of links) {
+      const sourceId =
+        typeof link.source === "string"
+          ? link.source
+          : link.source.id;
+      const targetId =
+        typeof link.target === "string"
+          ? link.target
+          : link.target.id;
+
+      if (sourceId === currentId || targetId === currentId) {
+        const ids = link.tupleIds || [link.tupleId];
+        for (const id of ids) tupleIds.add(id);
+
+        const nextId =
+          sourceId === currentId ? targetId : sourceId;
+        if (!visitedNodes.has(nextId)) queue.push(nextId);
+      }
+    }
+  }
+
+  return tupleIds;
+}
+
+/**
+ * Get or create the HTML tooltip element
+ */
+function getOrCreateTooltip(): HTMLDivElement {
+  let tooltip = document.getElementById(
+    "sankey-tooltip"
+  ) as HTMLDivElement;
+
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.id = "sankey-tooltip";
+    tooltip.style.cssText = [
+      "position:fixed",
+      "pointer-events:none",
+      "background:white",
+      "border:1px solid #ccc",
+      "border-radius:4px",
+      "padding:6px 10px",
+      'font-size:12px',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+      "box-shadow:0 2px 4px rgba(0,0,0,0.15)",
+      "z-index:10000",
+      "display:none",
+      "white-space:nowrap",
+      "color:#333",
+    ].join(";");
+    document.body.appendChild(tooltip);
+  }
+
+  return tooltip;
+}
+
+/**
+ * Show tooltip at the given position
+ */
+function showTooltip(x: number, y: number, text: string): void {
+  const tooltip = getOrCreateTooltip();
+  tooltip.textContent = text;
+  tooltip.style.display = "block";
+  tooltip.style.left = `${x + TOOLTIP_OFFSET_X}px`;
+  tooltip.style.top = `${y + TOOLTIP_OFFSET_Y}px`;
+}
+
+/**
+ * Hide the tooltip
+ */
+function hideTooltip(): void {
+  const tooltip = document.getElementById(
+    "sankey-tooltip"
+  ) as HTMLDivElement;
+  if (tooltip) tooltip.style.display = "none";
+}
+
+/**
+ * Handle click events — supports both link and node clicks
  */
 export function onClick(
   e: MouseEvent,
   selectedTupleIds: Map<number, boolean>,
-  hoveredTupleIds: Map<number, boolean>
+  hoveredTupleIds: Map<number, boolean>,
+  layoutLinks: SankeyLink[]
 ): void {
-  const elem = d3.select(
-    document.elementFromPoint(e.pageX, e.pageY) as Element
-  );
-  const data = elem?.datum() as SankeyLink | undefined;
-  const tupleId = data?.tupleId;
+  const element = document.elementFromPoint(
+    e.pageX,
+    e.pageY
+  ) as Element;
 
-  if (elem && tupleId !== undefined) {
-    if (selectedTupleIds.has(tupleId)) {
-      // User clicked on an already selected item
-      // Only one item is selected - deselect it
-      if (selectedTupleIds.size === 1) selectedTupleIds.clear();
-      // Remove an item from selection
-      else if (e.ctrlKey) selectedTupleIds.delete(tupleId);
-      else {
+  if (!element) {
+    if (!e.ctrlKey) selectedTupleIds.clear();
+    selectTuples(
+      e.pageX,
+      e.pageY,
+      selectedTupleIds,
+      hoveredTupleIds
+    );
+    return;
+  }
+
+  const elem = d3.select(element);
+  const isNode = element.classList?.contains("node");
+  const isLink = element.classList?.contains("link");
+
+  if (isNode) {
+    const nodeData = elem.datum() as SankeyNode;
+    if (!e.ctrlKey) selectedTupleIds.clear();
+
+    // Select all links connected to this node
+    for (const link of layoutLinks) {
+      const sourceId =
+        typeof link.source === "string"
+          ? link.source
+          : link.source.id;
+      const targetId =
+        typeof link.target === "string"
+          ? link.target
+          : link.target.id;
+
+      if (sourceId === nodeData.id || targetId === nodeData.id) {
+        const ids = link.tupleIds || [link.tupleId];
+        for (const id of ids) selectedTupleIds.set(id, true);
+      }
+    }
+  } else if (isLink) {
+    const data = elem.datum() as SankeyLink;
+    const ids = data.tupleIds || [data.tupleId];
+    const allSelected = ids.every((id) =>
+      selectedTupleIds.has(id)
+    );
+
+    if (allSelected) {
+      if (selectedTupleIds.size === ids.length) {
         selectedTupleIds.clear();
-        selectedTupleIds.set(tupleId, true);
+      } else if (e.ctrlKey) {
+        for (const id of ids) selectedTupleIds.delete(id);
+      } else {
+        selectedTupleIds.clear();
+        for (const id of ids) selectedTupleIds.set(id, true);
       }
     } else {
       if (!e.ctrlKey) selectedTupleIds.clear();
-      selectedTupleIds.set(tupleId, true);
+      for (const id of ids) selectedTupleIds.set(id, true);
     }
   } else if (!e.ctrlKey) {
-    // Clicking outside of any element will clear all elements, unless CTRL is pressed
     selectedTupleIds.clear();
   }
 
-  selectTuples(e.pageX, e.pageY, selectedTupleIds, hoveredTupleIds);
+  selectTuples(
+    e.pageX,
+    e.pageY,
+    selectedTupleIds,
+    hoveredTupleIds
+  );
 }
 
 /**
- * Handle mouse move events
+ * Handle mouse move events — supports node hover path tracing and tooltip
  */
 export async function onMouseMove(
   e: MouseEvent,
   hoveredTupleIds: Map<number, boolean>,
   linksPerTupleId: Map<number, any[]>,
-  hoveringLayer: any
+  hoveringLayer: any,
+  settings: ExtensionSettings,
+  totalLinkValue: number,
+  layoutLinks: SankeyLink[],
+  hiddenLabelNodeIds: Set<number> = new Set()
 ): Promise<void> {
-  const elem = d3.select(
-    document.elementFromPoint(e.pageX, e.pageY) as Element
-  );
-  const data = elem?.node() ? (elem.datum() as SankeyLink) : undefined;
-  const tupleId = data?.tupleId;
+  const element = document.elementFromPoint(
+    e.pageX,
+    e.pageY
+  ) as Element;
+
+  const isNode = element?.classList?.contains("node");
+  const isLink = element?.classList?.contains("link");
 
   const hadHoveredTupleBefore = hoveredTupleIds.size !== 0;
 
   clearHoveredMarks(hoveredTupleIds);
 
-  if (elem && tupleId !== undefined) {
-    hoveredTupleIds.set(tupleId, true);
-    getWorksheet().hoverTupleAsync(tupleId, {
+  if (isNode && element) {
+    const elem = d3.select(element);
+    const nodeData = elem.datum() as SankeyNode;
+
+    // Path tracing: highlight all connected paths recursively
+    const connectedIds = getConnectedPaths(
+      nodeData.id,
+      layoutLinks
+    );
+    for (const id of connectedIds) {
+      hoveredTupleIds.set(id, true);
+    }
+
+    const nodeValue = nodeData.value || 0;
+    const isLabelHidden = nodeData.index !== undefined &&
+      hiddenLabelNodeIds.has(nodeData.index);
+
+    if (settings.showPercentages || isLabelHidden) {
+      const percentage =
+        totalLinkValue > 0
+          ? ((nodeValue / totalLinkValue) * 100).toFixed(1)
+          : "0";
+      const tooltipText = settings.showPercentages
+        ? `${nodeData.name}: ${nodeValue.toLocaleString()} (${percentage}%)`
+        : `${nodeData.name}: ${nodeValue.toLocaleString()}`;
+      showTooltip(e.pageX, e.pageY, tooltipText);
+    } else {
+      hideTooltip();
+    }
+
+    // Hover first tupleId for Tableau tooltip
+    const firstId = connectedIds.values().next().value;
+    if (firstId !== undefined) {
+      getWorksheet().hoverTupleAsync(firstId, {
+        tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
+      });
+    }
+  } else if (isLink && element) {
+    const elem = d3.select(element);
+    const data = elem.datum() as SankeyLink;
+    const ids = data.tupleIds || [data.tupleId];
+
+    for (const id of ids) {
+      hoveredTupleIds.set(id, true);
+    }
+
+    if (settings.showPercentages) {
+      const sourceName =
+        typeof data.source === "string"
+          ? data.source
+          : data.source.name;
+      const targetName =
+        typeof data.target === "string"
+          ? data.target
+          : data.target.name;
+      const percentage =
+        totalLinkValue > 0
+          ? ((data.value / totalLinkValue) * 100).toFixed(1)
+          : "0";
+      showTooltip(
+        e.pageX,
+        e.pageY,
+        `${sourceName} \u2192 ${targetName}: ${data.value.toLocaleString()} (${percentage}%)`
+      );
+    } else {
+      hideTooltip();
+    }
+
+    getWorksheet().hoverTupleAsync(data.tupleId, {
       tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
     });
-  } else if (hadHoveredTupleBefore) {
-    getWorksheet().hoverTupleAsync(tupleId || 0, {
-      tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
-    });
+  } else {
+    hideTooltip();
+
+    if (hadHoveredTupleBefore) {
+      getWorksheet().hoverTupleAsync(0, {
+        tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
+      });
+    }
   }
 
-  renderHoveredElements(hoveredTupleIds, linksPerTupleId, hoveringLayer);
+  renderHoveredElements(
+    hoveredTupleIds,
+    linksPerTupleId,
+    hoveringLayer
+  );
 }

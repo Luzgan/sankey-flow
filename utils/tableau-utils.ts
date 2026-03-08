@@ -12,6 +12,7 @@ import {
 export interface EncodingMap {
   level?: Field[];
   edge?: Field[];
+  color?: Field[];
 }
 
 export type RowData = { tupleId: number } & {
