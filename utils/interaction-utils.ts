@@ -12,31 +12,31 @@ import {
 } from "./constants";
 
 /**
- * Get links per tuple ID for selection handling.
- * Handles both individual and aggregated links.
+ * Get flows per tuple ID for selection handling.
+ * Handles both individual and aggregated flows.
  */
-export function getLinksPerTupleId(links: any): Map<number, any[]> {
-  const linksPerTupleId = new Map<number, any[]>();
+export function getFlowsPerTupleId(links: any): Map<number, any[]> {
+  const flowsPerTupleId = new Map<number, any[]>();
 
   links.each(function (this: any, d: SankeyLink) {
     const ids = d.tupleIds || [d.tupleId];
     const selection = d3.select(this);
 
     for (const id of ids) {
-      let list = linksPerTupleId.get(id);
+      let list = flowsPerTupleId.get(id);
       if (!list) {
         list = [];
-        linksPerTupleId.set(id, list);
+        flowsPerTupleId.set(id, list);
       }
       list.push(selection);
     }
   });
 
-  return linksPerTupleId;
+  return flowsPerTupleId;
 }
 
 /**
- * Get selected node indexes from selected links
+ * Get selected node indexes from selected flows
  */
 export function getSelectedNodes(
   links: SankeyLink[],
@@ -71,19 +71,19 @@ export function getSelectedNodes(
  */
 export function renderSelection(
   selectedTupleIds: Map<number, boolean>,
-  linksPerTupleId: Map<number, any[]>,
+  flowsPerTupleId: Map<number, any[]>,
   selectionLayer: any,
   highlightingLayer: any
 ): void {
   selectionLayer.selectAll("*").remove();
   highlightingLayer.selectAll("*").remove();
 
-  const selectedLinks: any[] = [];
+  const selectedFlows: any[] = [];
 
   for (const id of selectedTupleIds.keys()) {
-    const links = linksPerTupleId.get(id);
+    const links = flowsPerTupleId.get(id);
     if (links) {
-      selectedLinks.push(...links);
+      selectedFlows.push(...links);
     }
   }
 
@@ -97,91 +97,95 @@ export function renderSelection(
 
   outline
     .selectAll()
-    .data(selectedLinks)
+    .data(selectedFlows)
     .join("path")
     .attr("d", (link: any) => link.attr("d"))
-    .datum((link: any) => link.datum());
-
-  let fill = selectionLayer.selectAll("g.selection");
-
-  if (fill.empty()) {
-    fill = selectionLayer.append("g").attr("class", "selection");
-  }
-
-  fill
-    .selectAll()
-    .data(selectedLinks)
-    .join("path")
-    .attr("d", (link: any) => link.attr("d"))
+    .attr("fill", "none")
+    .attr("stroke", "#000")
+    .attr("stroke-width", 1.5)
+    .attr("stroke-opacity", 0.5)
     .datum((link: any) => link.datum());
 }
 
 /**
- * Render hovered elements on a separate top-level layer
+ * Render hovered elements on a separate top-level layer.
+ * extraFlows allows adding SVG selections directly (bypassing tupleId lookup).
  */
 export function renderHoveredElements(
   hoveredTupleIds: Map<number, boolean>,
-  linksPerTupleId: Map<number, any[]>,
-  hoveringLayer: any
+  flowsPerTupleId: Map<number, any[]>,
+  hoveringLayer: any,
+  extraFlows: any[] = []
 ): void {
   if (!hoveringLayer) return;
 
   hoveringLayer.selectAll("*").remove();
 
-  const hoveredLinks: any[] = [];
+  const hoveredFlows: any[] = [...extraFlows];
+  const seen = new Set(extraFlows);
   for (const id of hoveredTupleIds.keys()) {
-    const links = linksPerTupleId.get(id);
+    const links = flowsPerTupleId.get(id);
     if (links) {
-      hoveredLinks.push(...links);
+      for (const link of links) {
+        if (!seen.has(link)) {
+          seen.add(link);
+          hoveredFlows.push(link);
+        }
+      }
     }
   }
 
   hoveringLayer
     .selectAll()
-    .data(hoveredLinks)
+    .data(hoveredFlows)
     .join("path")
     .attr("d", (link: any) => link.attr("d"))
-    .attr("class", "highlighting");
+    .attr("fill", "none")
+    .attr("stroke", "#000")
+    .attr("stroke-width", 1)
+    .attr("stroke-opacity", 0.4);
 }
 
+
 /**
- * Find all connected paths from a node via BFS
+ * Find only directly connected flows (incoming + outgoing) for a node
  */
-export function getConnectedPaths(
+export function getDirectConnections(
   nodeId: string,
   links: SankeyLink[]
 ): Set<number> {
-  const visitedNodes = new Set<string>();
   const tupleIds = new Set<number>();
-  const queue = [nodeId];
 
-  while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    if (visitedNodes.has(currentId)) continue;
-    visitedNodes.add(currentId);
+  for (const link of links) {
+    const sourceId =
+      typeof link.source === "string" ? link.source : link.source.id;
+    const targetId =
+      typeof link.target === "string" ? link.target : link.target.id;
 
-    for (const link of links) {
-      const sourceId =
-        typeof link.source === "string"
-          ? link.source
-          : link.source.id;
-      const targetId =
-        typeof link.target === "string"
-          ? link.target
-          : link.target.id;
-
-      if (sourceId === currentId || targetId === currentId) {
-        const ids = link.tupleIds || [link.tupleId];
-        for (const id of ids) tupleIds.add(id);
-
-        const nextId =
-          sourceId === currentId ? targetId : sourceId;
-        if (!visitedNodes.has(nextId)) queue.push(nextId);
-      }
+    if (sourceId === nodeId || targetId === nodeId) {
+      const ids = link.tupleIds || [link.tupleId];
+      for (const id of ids) tupleIds.add(id);
     }
   }
 
   return tupleIds;
+}
+
+/**
+ * For a drop-off node, find the source node ID it drops off from
+ */
+export function getDropoffSourceId(
+  dropoffNodeId: string,
+  links: SankeyLink[]
+): string | null {
+  for (const link of links) {
+    const targetId =
+      typeof link.target === "string" ? link.target : link.target.id;
+    if (targetId === dropoffNodeId) {
+      return typeof link.source === "string" ? link.source : link.source.id;
+    }
+  }
+  return null;
 }
 
 /**
@@ -261,38 +265,57 @@ function hideTooltip(): void {
 }
 
 /**
+ * Format detail values as HTML lines for tooltip display
+ */
+function formatDetailHtml(detailValues: Record<string, string> | undefined): string {
+  if (!detailValues) return "";
+  const entries = Object.entries(detailValues);
+  if (entries.length === 0) return "";
+  return entries
+    .map(([field, value]) => `<span style="color:#888">${sanitizeTooltipHtml(field)}:</span> ${sanitizeTooltipHtml(value)}`)
+    .join("<br>");
+}
+
+/**
  * Get tooltip content based on tooltip mode setting
  */
 function getTooltipContent(
   settings: ExtensionSettings,
   placeholders: Record<string, string>,
-  elementType: "node" | "link"
+  elementType: "node" | "link",
+  detailValues?: Record<string, string>
 ): string {
   if (settings.tooltipMode === "minimal") {
     return `${placeholders.name}: ${placeholders.value}`;
   }
 
   if (settings.tooltipMode === "custom") {
-    return buildTooltipHtml(settings.tooltipTemplate, placeholders);
+    // Add {detail} placeholder support for custom templates
+    const detailText = detailValues
+      ? Object.entries(detailValues).map(([f, v]) => `${f}: ${v}`).join(", ")
+      : "";
+    return buildTooltipHtml(settings.tooltipTemplate, { ...placeholders, detail: detailText });
   }
 
   // "detailed" mode
+  const detailHtml = formatDetailHtml(detailValues);
+  const detailSuffix = detailHtml ? `<br>${detailHtml}` : "";
+
   if (elementType === "node") {
     return `<b>${placeholders.name}</b><br>${placeholders.value} (${placeholders.percentage}%)`;
   }
-  return `<b>${placeholders.source}</b> \u2192 <b>${placeholders.target}</b><br>${placeholders.value} (${placeholders.percentage}%)`;
+  return `<b>${placeholders.source}</b> \u2192 <b>${placeholders.target}</b><br>${placeholders.value} (${placeholders.percentage}%)${detailSuffix}`;
 }
 
 /**
- * Handle click events — supports both link and node clicks.
+ * Handle click events — supports both flow and node clicks.
  * Supports select, filter, and filterConnected click actions.
  */
 export function onClick(
   e: MouseEvent,
   selectedTupleIds: Map<number, boolean>,
   hoveredTupleIds: Map<number, boolean>,
-  layoutLinks: SankeyLink[],
-  settings?: ExtensionSettings
+  layoutFlows: SankeyLink[]
 ): void {
   const element = document.elementFromPoint(
     e.pageX,
@@ -312,47 +335,23 @@ export function onClick(
 
   const elem = d3.select(element);
   const isNode = element.classList?.contains("node");
-  const isLink = element.classList?.contains("link");
+  const isFlow = element.classList?.contains("flow");
 
   if (isNode) {
     const nodeData = elem.datum() as SankeyNode;
-    const clickAction = settings?.clickAction ?? "select";
 
-    if (clickAction === "filter" || clickAction === "filterConnected") {
-      // Filter actions: collect tupleIds and apply filter via Tableau API
-      const idsToFilter = new Set<number>();
+    if (!e.ctrlKey) selectedTupleIds.clear();
 
-      if (clickAction === "filterConnected") {
-        const connected = getConnectedPaths(nodeData.id, layoutLinks);
-        for (const id of connected) idsToFilter.add(id);
-      } else {
-        for (const link of layoutLinks) {
-          const sourceId = typeof link.source === "string" ? link.source : link.source.id;
-          const targetId = typeof link.target === "string" ? link.target : link.target.id;
-          if (sourceId === nodeData.id || targetId === nodeData.id) {
-            const ids = link.tupleIds || [link.tupleId];
-            for (const id of ids) idsToFilter.add(id);
-          }
-        }
-      }
+    for (const link of layoutFlows) {
+      const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+      const targetId = typeof link.target === "string" ? link.target : link.target.id;
 
-      if (!e.ctrlKey) selectedTupleIds.clear();
-      for (const id of idsToFilter) selectedTupleIds.set(id, true);
-    } else {
-      // Default "select" behavior
-      if (!e.ctrlKey) selectedTupleIds.clear();
-
-      for (const link of layoutLinks) {
-        const sourceId = typeof link.source === "string" ? link.source : link.source.id;
-        const targetId = typeof link.target === "string" ? link.target : link.target.id;
-
-        if (sourceId === nodeData.id || targetId === nodeData.id) {
-          const ids = link.tupleIds || [link.tupleId];
-          for (const id of ids) selectedTupleIds.set(id, true);
-        }
+      if (sourceId === nodeData.id || targetId === nodeData.id) {
+        const ids = link.tupleIds || [link.tupleId];
+        for (const id of ids) selectedTupleIds.set(id, true);
       }
     }
-  } else if (isLink) {
+  } else if (isFlow) {
     const data = elem.datum() as SankeyLink;
     const ids = data.tupleIds || [data.tupleId];
     const allSelected = ids.every((id) =>
@@ -390,11 +389,11 @@ export function onClick(
 export async function onMouseMove(
   e: MouseEvent,
   hoveredTupleIds: Map<number, boolean>,
-  linksPerTupleId: Map<number, any[]>,
+  flowsPerTupleId: Map<number, any[]>,
   hoveringLayer: any,
   settings: ExtensionSettings,
-  totalLinkValue: number,
-  layoutLinks: SankeyLink[],
+  totalFlowValue: number,
+  layoutFlows: SankeyLink[],
   hiddenLabelNodeIds: Set<number> = new Set()
 ): Promise<void> {
   const element = document.elementFromPoint(
@@ -403,9 +402,10 @@ export async function onMouseMove(
   ) as Element;
 
   const isNode = element?.classList?.contains("node");
-  const isLink = element?.classList?.contains("link");
+  const isFlow = element?.classList?.contains("flow");
 
   const hadHoveredTupleBefore = hoveredTupleIds.size !== 0;
+  let extraHoverFlows: any[] = [];
 
   clearHoveredMarks(hoveredTupleIds);
 
@@ -413,13 +413,34 @@ export async function onMouseMove(
     const elem = d3.select(element);
     const nodeData = elem.datum() as SankeyNode;
 
-    // Path tracing: highlight all connected paths recursively
-    const connectedIds = getConnectedPaths(
+    // Highlight only directly connected flows (incoming + outgoing)
+    const connectedIds = getDirectConnections(
       nodeData.id,
-      layoutLinks
+      layoutFlows
     );
     for (const id of connectedIds) {
       hoveredTupleIds.set(id, true);
+    }
+
+    // For drop-off nodes: also collect SVG elements for incoming flows
+    // to the source node (bypassing tupleIds which are shared across flows)
+    extraHoverFlows = [];
+    if (nodeData.id.startsWith("dropoff-")) {
+      const sourceId = getDropoffSourceId(nodeData.id, layoutFlows);
+      if (sourceId) {
+        const svgContainer = elem.node()?.closest("svg");
+        if (svgContainer) {
+          d3.select(svgContainer)
+            .selectAll<SVGPathElement, SankeyLink>(".flow")
+            .each(function (d: SankeyLink) {
+              const targetId =
+                typeof d.target === "string" ? d.target : d.target.id;
+              if (targetId === sourceId) {
+                extraHoverFlows.push(d3.select(this));
+              }
+            });
+        }
+      }
     }
 
     const nodeValue = nodeData.value || 0;
@@ -428,8 +449,8 @@ export async function onMouseMove(
 
     if (settings.showPercentages || isLabelHidden) {
       const percentage =
-        totalLinkValue > 0
-          ? ((nodeValue / totalLinkValue) * 100).toFixed(1)
+        totalFlowValue > 0
+          ? ((nodeValue / totalFlowValue) * 100).toFixed(1)
           : "0";
       const placeholders = {
         name: nodeData.name,
@@ -445,14 +466,15 @@ export async function onMouseMove(
       hideTooltip();
     }
 
-    // Hover first tupleId for Tableau tooltip
+    // Hover first tupleId for Tableau hover actions
     const firstId = connectedIds.values().next().value;
     if (firstId !== undefined) {
-      getWorksheet().hoverTupleAsync(firstId, {
-        tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
-      });
+      const tooltipCtx = settings.showTableauTooltip
+        ? { tooltipAnchorPoint: { x: e.pageX, y: e.pageY } }
+        : null;
+      getWorksheet().hoverTupleAsync(firstId, tooltipCtx);
     }
-  } else if (isLink && element) {
+  } else if (isFlow && element) {
     const elem = d3.select(element);
     const data = elem.datum() as SankeyLink;
     const ids = data.tupleIds || [data.tupleId];
@@ -471,8 +493,8 @@ export async function onMouseMove(
           ? data.target
           : data.target.name;
       const percentage =
-        totalLinkValue > 0
-          ? ((data.value / totalLinkValue) * 100).toFixed(1)
+        totalFlowValue > 0
+          ? ((data.value / totalFlowValue) * 100).toFixed(1)
           : "0";
       const placeholders = {
         name: `${sourceName} \u2192 ${targetName}`,
@@ -482,28 +504,45 @@ export async function onMouseMove(
         target: targetName,
         level: "",
       };
-      const tooltipHtml = getTooltipContent(settings, placeholders, "link");
+      const tooltipHtml = getTooltipContent(settings, placeholders, "link", data.detailValues);
       showTooltip(e.pageX, e.pageY, tooltipHtml);
+    } else if (data.detailValues && Object.keys(data.detailValues).length > 0) {
+      // Even without percentages, show detail values when available
+      const sourceName =
+        typeof data.source === "string"
+          ? data.source
+          : data.source.name;
+      const targetName =
+        typeof data.target === "string"
+          ? data.target
+          : data.target.name;
+      const detailHtml = formatDetailHtml(data.detailValues);
+      showTooltip(e.pageX, e.pageY,
+        `<b>${sourceName}</b> \u2192 <b>${targetName}</b>: ${data.value.toLocaleString()}<br>${detailHtml}`);
     } else {
       hideTooltip();
     }
 
-    getWorksheet().hoverTupleAsync(data.tupleId, {
-      tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
-    });
+    // Hover for Tableau hover actions
+    const flowTooltipCtx = settings.showTableauTooltip
+      ? { tooltipAnchorPoint: { x: e.pageX, y: e.pageY } }
+      : null;
+    getWorksheet().hoverTupleAsync(data.tupleId, flowTooltipCtx);
   } else {
     hideTooltip();
 
     if (hadHoveredTupleBefore) {
-      getWorksheet().hoverTupleAsync(0, {
-        tooltipAnchorPoint: { x: e.pageX, y: e.pageY },
-      });
+      const clearCtx = settings.showTableauTooltip
+        ? { tooltipAnchorPoint: { x: e.pageX, y: e.pageY } }
+        : null;
+      getWorksheet().hoverTupleAsync(0, clearCtx);
     }
   }
 
   renderHoveredElements(
     hoveredTupleIds,
-    linksPerTupleId,
-    hoveringLayer
+    flowsPerTupleId,
+    hoveringLayer,
+    extraHoverFlows
   );
 }

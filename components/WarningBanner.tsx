@@ -12,6 +12,8 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({ validation }) => {
     return null;
   }
 
+  const isSingle = validation.warnings.length === 1;
+
   return (
     <div
       id="sankey-warning-banner"
@@ -23,31 +25,42 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({ validation }) => {
         background: "#fff3cd",
         border: "1px solid #ffeaa7",
         color: "#856404",
-        padding: "12px 20px",
+        padding: "10px 40px 10px 16px",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontSize: "14px",
+        fontSize: "13px",
+        lineHeight: "1.4",
         zIndex: 1000,
         boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
       }}
     >
-      <div>
-        <strong>⚠️ Configuration Warning:</strong>{" "}
-        {validation.warnings.join(" ")}
-        <button
-          onClick={() => setIsVisible(false)}
-          style={{
-            float: "right",
-            background: "none",
-            border: "none",
-            color: "#856404",
-            cursor: "pointer",
-            fontSize: "16px",
-          }}
-        >
-          ×
-        </button>
-      </div>
+      <button
+        onClick={() => setIsVisible(false)}
+        style={{
+          position: "absolute",
+          top: "8px",
+          right: "12px",
+          background: "none",
+          border: "none",
+          color: "#856404",
+          cursor: "pointer",
+          fontSize: "18px",
+          lineHeight: "1",
+          padding: "0 4px",
+        }}
+        aria-label="Dismiss warning"
+      >
+        ×
+      </button>
+      {isSingle ? (
+        <span>{validation.warnings[0]}</span>
+      ) : (
+        <ul style={{ margin: "0", paddingLeft: "18px" }}>
+          {validation.warnings.map((w, i) => (
+            <li key={i}>{w}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

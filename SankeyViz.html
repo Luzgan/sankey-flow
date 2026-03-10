@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- Extensions Library -->
-    <script src="./../lib/tableau.extensions.1.latest.min.js"></script>
+    <script src="./lib/tableau.extensions.1.latest.min.js"></script>
 
     <!-- Our extension's code (bundled with all dependencies) -->
     <script src="./SankeyViz.js"></script>
@@ -16,8 +16,6 @@
       body {
         margin: 0;
         padding: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-          sans-serif;
       }
 
       .tableau-worksheet {
@@ -26,38 +24,15 @@
         position: fixed;
       }
 
-      .selection {
-        fill: #4e79a7;
-        fill-opacity: 1;
-        cursor: pointer;
-      }
-
-      .selectionOutline {
-        stroke-width: 4;
-        stroke: black;
-        fill: none;
-      }
-
-      .highlighting {
-        fill: none;
-        stroke-width: 2;
-        stroke: #333;
-        cursor: pointer;
-      }
-
       .node-label {
-        font-size: 12px;
-        font-weight: 500;
         pointer-events: none;
       }
 
-      .level-label {
-        font-size: 14px;
-        font-weight: bold;
+      .stage-label {
         text-anchor: middle;
       }
 
-      .link {
+      .flow {
         fill: none;
         cursor: pointer;
       }
@@ -83,69 +58,6 @@
         height: 100%;
         font-size: 16px;
         color: #666;
-      }
-
-      /* Configuration Dialog Styles */
-      .configuration-dialog {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-      }
-
-      .configuration-dialog .dialog-content {
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        width: 90%;
-        max-width: 500px;
-        max-height: 80vh;
-        overflow-y: auto;
-      }
-
-      .dialog-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 24px 16px;
-        border-bottom: 1px solid #e0e0e0;
-      }
-
-      .dialog-header h3 {
-        margin: 0;
-        font-size: 18px;
-        font-weight: 600;
-        color: #333;
-      }
-
-      .close-button {
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        color: #666;
-        padding: 0;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-      }
-
-      .close-button:hover {
-        background-color: #f5f5f5;
-        color: #333;
-      }
-
-      .dialog-content {
-        padding: 24px;
       }
 
       .form-group {
@@ -195,47 +107,6 @@
         font-size: 12px;
         color: #666;
         line-height: 1.4;
-      }
-
-      .dialog-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-        padding: 16px 24px 24px;
-        border-top: 1px solid #e0e0e0;
-      }
-
-      .cancel-button,
-      .save-button {
-        padding: 8px 16px;
-        border-radius: 4px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        border: 1px solid;
-        transition: all 0.2s;
-      }
-
-      .cancel-button {
-        background: white;
-        border-color: #ddd;
-        color: #666;
-      }
-
-      .cancel-button:hover {
-        background-color: #f5f5f5;
-        border-color: #ccc;
-      }
-
-      .save-button {
-        background: #4e79a7;
-        border-color: #4e79a7;
-        color: white;
-      }
-
-      .save-button:hover {
-        background: #3d6a96;
-        border-color: #3d6a96;
       }
 
       /* Onboarding overlay (Step 8) */
@@ -329,49 +200,6 @@
         background: #3d6a96;
       }
 
-      /* Legend (Step 9) */
-      .sankey-legend {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 16px;
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #555;
-      }
-
-      .sankey-legend-bottom {
-        justify-content: center;
-        border-top: 1px solid #e0e0e0;
-      }
-
-      .sankey-legend-right {
-        flex-direction: column;
-        flex-wrap: nowrap;
-        border-left: 1px solid #e0e0e0;
-        max-width: 140px;
-        overflow-y: auto;
-      }
-
-      .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-      }
-
-      .legend-swatch {
-        width: 12px;
-        height: 12px;
-        border-radius: 2px;
-        flex-shrink: 0;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-      }
-
-      .legend-label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
       /* Export button (Step 10) */
       .export-button-container {
         position: absolute;
@@ -408,13 +236,14 @@
 
       .export-menu {
         position: absolute;
-        top: 32px;
+        top: 28px;
         right: 0;
         background: white;
         border: 1px solid #ccc;
         border-radius: 4px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         overflow: hidden;
+        padding-top: 4px;
       }
 
       .export-menu button {
@@ -434,8 +263,8 @@
         background: #f0f4f9;
       }
 
-      /* Link labels (Step 6) */
-      .link-label {
+      /* Flow labels (Step 6) */
+      .flow-label {
         pointer-events: none;
       }
     </style>

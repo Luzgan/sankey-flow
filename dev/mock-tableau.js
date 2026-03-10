@@ -136,7 +136,7 @@
     // Data as 2D array of {value, formattedValue}
     const data = rows.map((row) =>
       row.map((val) => {
-        const num = Number(val);
+        const num = val === "" ? NaN : Number(val);
         return {
           value: isNaN(num) ? val : num,
           formattedValue: String(val),
@@ -150,8 +150,7 @@
   }
 
   // --- Visual specification (encoding map) ---
-  // Simulates: Source, Category, Target → Level encoding; Value → Edge encoding
-  // Optionally uses "Category" as color encoding
+  // Simulates: Source, Category, Target → Stage encoding; Value → Edge encoding
   function buildVisualSpec(columns) {
     // Assume last column is the measure (edge), rest are dimensions (levels)
     const levelColumns = columns.slice(0, -1);
@@ -175,19 +174,6 @@
         },
       },
     ];
-
-    // Use "Category" column as color encoding if it exists
-    const categoryCol = columns.find((c) => c.fieldName === "Category");
-    if (categoryCol) {
-      encodings.push({
-        id: "color",
-        field: {
-          name: categoryCol.fieldName,
-          index: categoryCol.index,
-          dataType: categoryCol.dataType,
-        },
-      });
-    }
 
     return {
       activeMarksSpecificationIndex: 0,
@@ -276,6 +262,7 @@
     worksheetContent: { worksheet },
 
     environment: {
+      mode: "authoring",
       workbookFormatting: {
         formattingSheets: [
           {

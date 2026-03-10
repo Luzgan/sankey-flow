@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
 import { ExtensionSettings } from "../utils/constants";
-import type { SankeyLink, SankeyNode } from "../utils/sankey-utils";
+import type { SankeyLink } from "../utils/sankey-utils";
 
 interface SankeyChartProps {
   summaryData: RowData[];
@@ -11,9 +11,9 @@ interface SankeyChartProps {
   settings: ExtensionSettings;
   onRenderComplete?: (result: {
     hoveringLayer: any;
-    linksPerTupleId: Map<number, any[]>;
-    totalLinkValue: number;
-    layoutLinks: SankeyLink[];
+    flowsPerTupleId: Map<number, any[]>;
+    totalFlowValue: number;
+    layoutFlows: SankeyLink[];
     hiddenLabelNodeIds: Set<number>;
     dataWarnings: string[];
   }) => void;
@@ -29,8 +29,22 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const sankeyInstanceRef = useRef<any>(null);
-  const [legendItems, setLegendItems] = useState<{ color: string; label: string }[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => {
+      setShowExportMenu(false);
+      closeTimerRef.current = null;
+    }, 300);
+  }, []);
 
   const handleExportSvg = useCallback(() => {
     if (!svgRef.current) return;
@@ -48,6 +62,13 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
       if (innerSvg) exportAsPng(innerSvg);
     });
     setShowExportMenu(false);
+  }, []);
+
+  // Clean up close timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -91,23 +112,12 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           sankey.layoutNodes
         );
 
-        // Extract legend items from layout nodes
-        const colorMap = new Map<string, string>();
-        for (const node of sankey.layoutNodes) {
-          if (!colorMap.has(node.color)) {
-            colorMap.set(node.color, node.colorValue || node.name);
-          }
-        }
-        setLegendItems(
-          [...colorMap.entries()].map(([color, label]) => ({ color, label }))
-        );
-
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
-            linksPerTupleId: sankey.linksPerTupleId,
-            totalLinkValue: sankey.totalLinkValue,
-            layoutLinks: sankey.layoutLinks,
+            flowsPerTupleId: sankey.flowsPerTupleId,
+            totalFlowValue: sankey.totalFlowValue,
+            layoutFlows: sankey.layoutFlows,
             hiddenLabelNodeIds,
             dataWarnings,
           });
@@ -179,9 +189,9 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
-            linksPerTupleId: sankey.linksPerTupleId,
-            totalLinkValue: sankey.totalLinkValue,
-            layoutLinks: sankey.layoutLinks,
+            flowsPerTupleId: sankey.flowsPerTupleId,
+            totalFlowValue: sankey.totalFlowValue,
+            layoutFlows: sankey.layoutFlows,
             hiddenLabelNodeIds,
             dataWarnings,
           });
@@ -204,28 +214,19 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   ]);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative", display: "flex", flexDirection: settings.legendPosition === "right" ? "row" : "column" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <svg
         ref={svgRef}
         style={{
-          flex: 1,
           display: "block",
-          minHeight: 0,
+          width: "100%",
+          height: "100%",
         }}
       />
-      {settings.showLegend && legendItems.length > 0 && (
-        <div className={`sankey-legend sankey-legend-${settings.legendPosition}`}>
-          {legendItems.map((item, i) => (
-            <div key={i} className="legend-item">
-              <span className="legend-swatch" style={{ backgroundColor: item.color }} />
-              <span className="legend-label">{item.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
       <div
         className="export-button-container"
-        onMouseLeave={() => setShowExportMenu(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <button
           className="export-button"

@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
-  <worksheet-extension id="com.sankey.extension.viz" extension-version="1.0.0">
+  <worksheet-extension id="com.sankeyflow.extension.viz" extension-version="1.0.0">
     <default-locale>en_US</default-locale>
     <name resource-id="name"/>
-    <description>Sankey Chart Visualization Extension</description>
-    <author name="Sankey Extension" email="developer@example.com" organization="Sankey Extension" website="https://example.com"/>
+    <description>Visualize how values flow, split, and merge across stages. Drag dimensions to Stage and a measure to Value to create a multi-stage Sankey diagram. Features gradient flows, 5+ color palettes, per-node color overrides, drop-off mode, smart labels, drag-to-reorder nodes, rich tooltips, SVG/PNG export, and full Tableau selection integration.</description>
+    <author name="Lukasz Holc" email="luk.holc@gmail.com" organization="Sankey Flow" website="https://lukholc.me"/>
     <min-api-version>1.11</min-api-version>
     <source-location>
-      <url>http://localhost:8765/sankey-tableau-extension/SankeyViz.html</url>
+      <url>https://sankeyflow.lukholc.me/SankeyViz.html</url>
     </source-location>
-    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEwAACxMBAJqcGAAAAlhJREFUOI2Nkt9vy1EYh5/3bbsvRSySCZbIxI+ZCKsN2TKtSFyIrV2WuRCJuBiJWxfuxCVXbvwFgiEtposgLFJElnbU1SxIZIIRJDKTrdu+53Uhra4mce7Oe57Pcz7JOULFisViwZ+29LAzOSjQYDgz1ZcCvWuXV11MJpN+OS/lm6179teqH0yDqxPTCyKSA8DcDsyOmOprnCaeP7459pdgy969i0LTC3IO/RQMyoHcQN+3cnljW3dNIFC47qDaK3g7BwdTkwBaBELT4ZPOUVWgKl4ZBnjxJPUlMDnTDrp0pmr6RHFeEjjcUUXPDGeSEwDN0Xg8sivxMhJNjGzbHd8PkM3eHRfkrBM5NkcQaY2vUnTlrDIA0NoaX+KLXFFlowr14tvVpqb2MICzmQcKqxvbumv+NAhZGCCIPwEw6QWXKYRL/VUXO0+rAUJiPwAk5MIlgVfwPjjHLCL1APmHN94ZdqeYN+NW/mn6I4BvwQYchcLnwFhJMDiYmlRxAzjpKWZkYkUCcZ2I61wi37tLbYyjiN0fHk5Oz3nGSLSzBbNHCF35R7f6K1/hN9PRhek11FrymfQQQKB4+Gl05P2qNRtmETlXW7e+b2z01dfycGNbfFMAbqNyKp9Jp4rzOT8RYFs0njJkc2iqsCObvTsOsDWWqA5C1uFy+Uz/oXJeKwVT4h0RmPUXhi79vuC0Ku6yOffTK3g9lfxfDQAisY516sg5kfOCiJk7HoLt2cf9b/9LANAc7dznm98PagG1fUOZ9IP5uMB8Q4CPoyNvausapkTt3rNMuvdf3C/o6+czhtdwmwAAAABJRU5ErkJggg==</icon>
+    <icon>/9j/4AAQSkZJRgABAQABLAEsAAD/4QCARXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAAEsAAAAAQAAASwAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAAABCgAwAEAAAAAQAAABAAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/AABEIABAAEAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2wBDAAICAgICAgMCAgMFAwMDBQYFBQUFBggGBgYGBggKCAgICAgICgoKCgoKCgoMDAwMDAwODg4ODg8PDw8PDw8PDw//2wBDAQICAgQEBAcEBAcQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/3QAEAAH/2gAMAwEAAhEDEQA/AP2e8ffGTw34B1K00W5tLzUr+4Yb4rW3dvKjMbsJGkKiPBZQgG8HLAnCgkafw88eXXjCG5XV7GHTLyNyY4orgThosDGSVjbepzvGzA4wTmtjxF4C8MeKPOl1W2LTzR+X5qyOrKB0wAdvHuDnvTPCXg6Lw2rPPMt1OqiKJgHCxQr91EV3fb1OdpAPHHFYSdXnjZLl69/8v63BNa33/D9Hf70f/9k=</icon>
     <context-menu>
       <configure-context-menu-item />
     </context-menu>
     <encoding id="level">
-      <display-name>Level</display-name>
+      <display-name>Stage</display-name>
       <role-spec>
         <role-type>discrete-dimension</role-type>
         <role-type>discrete-measure</role-type>
@@ -22,24 +22,17 @@
       <fields max-count="5"/>
     </encoding>
     <encoding id="edge">
-      <display-name>Edge</display-name>
+      <display-name>Value</display-name>
       <role-spec>
         <role-type>continuous-measure</role-type>
         <role-type>continuous-dimension</role-type>
       </role-spec>
       <fields max-count="1"/>
     </encoding>
-    <encoding id="color">
-      <display-name>Color</display-name>
-      <role-spec>
-        <role-type>discrete-dimension</role-type>
-      </role-spec>
-      <fields max-count="1"/>
-    </encoding>
   </worksheet-extension>
   <resources>
     <resource id="name">
-      <text locale="en_US">Sankey Chart</text>
+      <text locale="en_US">Sankey Flow</text>
     </resource>
   </resources>
 </manifest> 

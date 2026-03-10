@@ -6,7 +6,9 @@ import { SankeyApp } from "./components/SankeyApp";
  * Configuration function for Tableau context menu
  */
 function configure() {
-  const popupUrl = `${window.location.origin}/sankey-tableau-extension/SankeyConfig.html`;
+  // Derive config URL relative to the current page (works in both dev and production)
+  const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/") + 1);
+  const popupUrl = `${window.location.origin}${basePath}SankeyConfig.html`;
 
   if (
     typeof tableau !== "undefined" &&
@@ -49,10 +51,10 @@ window.onload = () => {
       const worksheet = tableau.extensions.worksheetContent?.worksheet;
       if (!worksheet) throw new Error("Worksheet not found");
 
-      // Get styles from Tableau
-      const styles =
+      // Read current Tableau formatting styles (workbook-level formatting)
+      const getStyles = () =>
         tableau.extensions.environment.workbookFormatting?.formattingSheets?.find(
-          (x) => x.classNameKey === "tableau-worksheet"
+          (x: { classNameKey: string }) => x.classNameKey === "tableau-worksheet"
         )?.cssProperties;
 
       // Create React root and render the app
@@ -60,7 +62,7 @@ window.onload = () => {
       if (!container) throw new Error("Content container not found");
 
       const root = createRoot(container);
-      root.render(<SankeyApp worksheet={worksheet} styles={styles} />);
+      root.render(<SankeyApp worksheet={worksheet} getStyles={getStyles} />);
     })
     .catch((error) => {
       console.error("Extension initialization failed:", error);

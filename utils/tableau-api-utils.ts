@@ -13,9 +13,12 @@ declare global {
   interface Window {
     tableau: {
       extensions: Extensions;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped Tableau global API
       TableauEventType: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped Tableau global API
       ErrorCodes: any;
     };
+    __sankeyDragSaving?: boolean;
   }
 }
 
@@ -36,6 +39,18 @@ export function getTableauExtensions(): Extensions {
     throw new Error('Tableau Extensions API is not available');
   }
   return window.tableau.extensions;
+}
+
+/**
+ * Check if the extension is running in authoring mode (vs viewing on a published dashboard)
+ */
+export function isAuthoringMode(): boolean {
+  try {
+    return getTableauExtensions().environment.mode === "authoring";
+  } catch {
+    // Dev mode / mock — treat as authoring
+    return true;
+  }
 }
 
 /**

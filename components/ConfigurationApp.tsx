@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   TableauSettings,
   TableauUI,
@@ -23,11 +23,10 @@ const COLOR_SCHEME_OPTIONS: RadioOption[] = [
   { value: "colorblind", label: "Colorblind-friendly", description: "Optimized for color vision deficiency" },
   { value: "monochrome", label: "Grayscale", description: "Single-hue palette for print or minimal design" },
   { value: "custom", label: "Custom palette", description: "Define your own 10-color palette" },
-  { value: "perNode", label: "Per node", description: "Assign a specific color to each node by name" },
-  { value: "perLevel", label: "Per level", description: "Different color palettes for each column" },
+  { value: "perStage", label: "Per stage", description: "Different color palettes for each stage" },
 ];
 
-const LINK_STYLE_OPTIONS: RadioOption[] = [
+const FLOW_STYLE_OPTIONS: RadioOption[] = [
   { value: "gradient", label: "Gradient", description: "Smooth color blend from source to target" },
   { value: "source", label: "Source color", description: "Flows match the color of their origin node" },
   { value: "target", label: "Target color", description: "Flows match the color of their destination node" },
@@ -47,7 +46,7 @@ const LABEL_POSITION_OPTIONS: RadioOption[] = [
 ];
 
 const NODE_SORT_OPTIONS: RadioOption[] = [
-  { value: "auto", label: "Minimize crossings", description: "Algorithm reorders nodes to reduce overlapping flows" },
+  { value: "auto", label: "Data order", description: "Nodes appear in the order they occur in the data (stable across settings changes)" },
   { value: "ascending", label: "Smallest at top", description: "Nodes with the lowest values appear first" },
   { value: "descending", label: "Largest at top", description: "Nodes with the highest values appear first" },
   { value: "alphabetical", label: "Alphabetical", description: "A\u2013Z ordering" },
@@ -71,27 +70,16 @@ const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
   { value: "custom", label: "Custom template", description: "Define your own HTML template with placeholders" },
 ];
 
-const LEGEND_POSITION_OPTIONS: RadioOption[] = [
-  { value: "bottom", label: "Bottom", description: "Legend below the chart" },
-  { value: "right", label: "Right", description: "Legend to the right of the chart" },
-];
-
 const SANKEY_TYPE_OPTIONS: RadioOption[] = [
-  { value: "standard", label: "Standard", description: "Multi-level left-to-right flow diagram" },
-  { value: "dropoff", label: "Drop-off", description: "Show lost value at each level as drop-off nodes" },
+  { value: "standard", label: "Standard", description: "Multi-stage left-to-right flow diagram" },
+  { value: "dropoff", label: "Drop-off", description: "Show lost value as drop-off nodes at each stage" },
 ];
 
-const DROPOFF_STYLE_OPTIONS: RadioOption[] = [
-  { value: "remainder", label: "Remainder nodes", description: "Show a muted (Drop-off) node for lost value" },
-  { value: "downward", label: "Downward flow", description: "Drop-off flows render downward (not yet implemented)" },
-  { value: "both", label: "Both", description: "Remainder node with downward flow" },
+const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
+  { value: "default", label: "Default", description: "All drop-off nodes use the standard red color" },
+  { value: "perNode", label: "Per node", description: "Override colors for individual drop-off nodes" },
 ];
 
-const CLICK_ACTION_OPTIONS: RadioOption[] = [
-  { value: "select", label: "Select marks", description: "Highlight connected links in the chart" },
-  { value: "filter", label: "Filter node", description: "Filter dashboard to show only the clicked node\u2019s data" },
-  { value: "filterConnected", label: "Filter connected", description: "Filter dashboard to show all data flowing through the clicked node" },
-];
 
 const SectionHeader: React.FC<{ title: string; first?: boolean }> = ({ title, first }) => (
   <div className={`section-header${first ? " section-header-first" : ""}`}>
@@ -105,22 +93,26 @@ const RadioGroup: React.FC<{
   value: string;
   options: RadioOption[];
   onChange: (value: string) => void;
-}> = ({ label, name, value, options, onChange }) => (
+  renderExtra?: (optionValue: string) => React.ReactNode;
+}> = ({ label, name, value, options, onChange, renderExtra }) => (
   <div className="form-group radio-group">
     <div className="radio-group-label">{label}</div>
     <div className="radio-options">
       {options.map((option) => (
-        <label key={option.value} className={`radio-option${value === option.value ? " radio-option-selected" : ""}`}>
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={value === option.value}
-            onChange={() => onChange(option.value)}
-          />
-          <span className="radio-option-label">{option.label}</span>
-          <div className="radio-option-description">{option.description}</div>
-        </label>
+        <div key={option.value}>
+          <label className={`radio-option${value === option.value ? " radio-option-selected" : ""}`}>
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+            />
+            <span className="radio-option-label">{option.label}</span>
+            <div className="radio-option-description">{option.description}</div>
+          </label>
+          {value === option.value && renderExtra && renderExtra(option.value)}
+        </div>
       ))}
     </div>
   </div>
@@ -131,19 +123,31 @@ const CheckboxOption: React.FC<{
   description: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-}> = ({ label, description, checked, onChange }) => (
-  <div className="form-group checkbox-group">
-    <label>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
-    <div className="help-text">{description}</div>
-  </div>
-);
+  disabled?: boolean;
+  indeterminate?: boolean;
+}> = ({ label, description, checked, onChange, disabled, indeterminate }) => {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = indeterminate ?? false;
+    }
+  }, [indeterminate]);
+  return (
+    <div className="form-group checkbox-group">
+      <label style={disabled ? { opacity: 0.6, cursor: "default" } : undefined}>
+        <input
+          ref={ref}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        {label}
+      </label>
+      <div className="help-text">{description}</div>
+    </div>
+  );
+};
 
 const SliderOption: React.FC<{
   label: string;
@@ -151,8 +155,10 @@ const SliderOption: React.FC<{
   value: number;
   min: number;
   max: number;
+  step?: number;
+  reversed?: boolean;
   onChange: (value: number) => void;
-}> = ({ label, description, value, min, max, onChange }) => (
+}> = ({ label, description, value, min, max, step, reversed, onChange }) => (
   <div className="form-group slider-group">
     <div className="slider-header">
       <span className="slider-label">{label}</span>
@@ -162,9 +168,11 @@ const SliderOption: React.FC<{
       type="range"
       min={min}
       max={max}
+      step={step}
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       className="slider-input"
+      style={reversed ? { direction: "rtl" } : undefined}
     />
     <div className="help-text">{description}</div>
   </div>
@@ -184,7 +192,6 @@ const CustomPaletteEditor: React.FC<{
     colors = [];
   }
 
-  // Pad to CUSTOM_PALETTE_SIZE with fallback color
   while (colors.length < CUSTOM_PALETTE_SIZE) {
     colors.push("#808080");
   }
@@ -275,10 +282,110 @@ const NodeColorEditor: React.FC<{
         />
         <button onClick={handleAdd} className="btn btn-save" style={{ padding: "4px 12px", minWidth: "auto" }}>Add</button>
       </div>
-      <div className="help-text">
-        Type a node name and click Add. The color will override the palette
-        for that node. Missing overrides fall back to the default palette.
+      <div className="help-text" style={{ marginLeft: 0 }}>
+        Click a node on the chart to pick its color, or type a name above and click Add. Missing overrides fall back to the palette.
       </div>
+    </div>
+  );
+};
+
+const STAGE_PALETTE_SIZE = 6;
+const DEFAULT_STAGE_COLORS = ["#4e79a7", "#f28e2c", "#e15759", "#76b7b2", "#59a14f", "#edc949"];
+
+const StagePaletteEditor: React.FC<{
+  palettesJson: string;
+  onChange: (json: string) => void;
+}> = ({ palettesJson, onChange }) => {
+  let palettes: Record<string, string[]>;
+  try {
+    const parsed: unknown = JSON.parse(palettesJson);
+    palettes = (parsed && typeof parsed === "object") ? parsed as Record<string, string[]> : {};
+  } catch {
+    palettes = {};
+  }
+
+  const stageKeys = Object.keys(palettes).map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);
+
+  const updateStage = (level: number, colors: string[]): void => {
+    const updated = { ...palettes, [String(level)]: colors };
+    onChange(JSON.stringify(updated));
+  };
+
+  const handleColorChange = (level: number, index: number, color: string): void => {
+    const current = palettes[String(level)] || DEFAULT_STAGE_COLORS.slice();
+    const updated = [...current];
+    updated[index] = color;
+    updateStage(level, updated);
+  };
+
+  const addStage = (): void => {
+    const nextLevel = stageKeys.length > 0 ? Math.max(...stageKeys) + 1 : 0;
+    const offset = nextLevel % DEFAULT_STAGE_COLORS.length;
+    const colors = [...DEFAULT_STAGE_COLORS.slice(offset), ...DEFAULT_STAGE_COLORS.slice(0, offset)];
+    updateStage(nextLevel, colors.slice(0, STAGE_PALETTE_SIZE));
+  };
+
+  const removeStage = (level: number): void => {
+    const updated = { ...palettes };
+    delete updated[String(level)];
+    onChange(JSON.stringify(updated));
+  };
+
+  return (
+    <div className="custom-palette-editor" style={{ textAlign: "left" }}>
+      <div className="help-text" style={{ marginBottom: 8 }}>
+        Each stage gets its own palette. Nodes cycle through the colors left to right.
+      </div>
+      {stageKeys.length === 0 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="help-text" style={{ margin: 0, fontStyle: "italic" }}>
+            No stages configured yet.
+          </div>
+          <button
+            onClick={addStage}
+            className="btn btn-cancel"
+            style={{ padding: "4px 12px", minWidth: "auto", fontSize: 13, whiteSpace: "nowrap" }}
+          >
+            + Add stage
+          </button>
+        </div>
+      ) : (
+        <>
+          {stageKeys.map((level) => {
+            const colors = palettes[String(level)] || [];
+            while (colors.length < STAGE_PALETTE_SIZE) colors.push("#808080");
+            return (
+              <div key={level} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Stage {level + 1}</span>
+                  <button className="node-color-remove" onClick={() => removeStage(level)} title="Remove stage">&times;</button>
+                </div>
+                <div className="custom-palette-swatches" style={{ justifyContent: "flex-start" }}>
+                  {colors.slice(0, STAGE_PALETTE_SIZE).map((color, i) => (
+                    <input
+                      key={i}
+                      type="color"
+                      className="color-swatch"
+                      value={color}
+                      onChange={(e) => handleColorChange(level, i, e.target.value)}
+                      title={`Stage ${level + 1}, color ${i + 1}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+            <button
+              onClick={addStage}
+              className="btn btn-cancel"
+              style={{ padding: "4px 12px", minWidth: "auto", fontSize: 13 }}
+            >
+              + Add stage
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -306,6 +413,10 @@ export const ConfigurationApp: React.FC = () => {
               (loaded as any)[key] = value;
             }
           }
+        }
+        // Backward compat: migrate "perNode" colorScheme to "default" with overrides
+        if ((loaded as any).colorScheme === "perNode") {
+          (loaded as any).colorScheme = "default";
         }
         setSettings({ ...DEFAULT_SETTINGS, ...loaded });
       } catch (error) {
@@ -363,57 +474,118 @@ export const ConfigurationApp: React.FC = () => {
     );
   }
 
+  // Labels parent checkbox state
+  const labelChildren = [settings.showLabels, settings.showValues, settings.showFlowLabels, settings.showStageLabels];
+  const allLabelsOn = labelChildren.every(Boolean);
+  const allLabelsOff = labelChildren.every((v) => !v);
+  const labelsIndeterminate = !allLabelsOn && !allLabelsOff;
+
+  const handleAllLabelsToggle = (checked: boolean): void => {
+    setSettings((prev) => ({
+      ...prev,
+      showLabels: checked,
+      showValues: checked,
+      showFlowLabels: checked,
+      showStageLabels: checked,
+    }));
+  };
+
+  const hasNodeColorOverrides = (() => {
+    try {
+      const parsed: unknown = JSON.parse(settings.nodeColorOverrides);
+      return parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, unknown>).length > 0;
+    } catch { return false; }
+  })();
+
+  const anyLabelShown = settings.showLabels || settings.showValues || settings.showFlowLabels || settings.showStageLabels;
+
   return (
     <div className="config-container">
       <div className="config-header">
-        <h2>Sankey Chart Configuration</h2>
-        <p>Configure the appearance and behavior of your Sankey chart.</p>
+        <h2>Sankey Flow</h2>
+        <p>Configure the appearance and behavior of your chart.</p>
       </div>
 
       <div className="config-form">
-        <SectionHeader title="Colors" first />
+        <SectionHeader title="Chart Type" first />
         <RadioGroup
-          label="Color Palette"
+          label="Sankey Type"
+          name="sankeyType"
+          value={settings.sankeyType}
+          onChange={(v) => updateSetting("sankeyType", v as ExtensionSettings["sankeyType"])}
+          options={SANKEY_TYPE_OPTIONS}
+        />
+
+        <SectionHeader title="Colors" />
+        <RadioGroup
+          label="Node colors"
           name="colorScheme"
           value={settings.colorScheme}
           onChange={(v) => updateSetting("colorScheme", v as ExtensionSettings["colorScheme"])}
           options={COLOR_SCHEME_OPTIONS}
+          renderExtra={(v) => {
+            if (v === "custom") return (
+              <CustomPaletteEditor
+                colorsJson={settings.customColors}
+                onChange={(json) => updateSetting("customColors", json)}
+              />
+            );
+            if (v === "perStage") return (
+              <StagePaletteEditor
+                palettesJson={settings.stagePalettes}
+                onChange={(json) => updateSetting("stagePalettes", json)}
+              />
+            );
+            return null;
+          }}
         />
-        {settings.colorScheme === "custom" && (
-          <CustomPaletteEditor
-            colorsJson={settings.customColors}
-            onChange={(json) => updateSetting("customColors", json)}
-          />
-        )}
-        {settings.colorScheme === "perNode" && (
-          <NodeColorEditor
-            overridesJson={settings.nodeColorOverrides}
-            onChange={(json) => updateSetting("nodeColorOverrides", json)}
-          />
-        )}
-        {settings.colorScheme === "perLevel" && (
-          <div className="custom-palette-editor">
-            <div className="help-text">
-              Per-level palettes are stored as JSON. Each level index (0, 1, 2...) maps to an
-              array of hex colors. Nodes in that level cycle through the palette.
-              Edit the JSON below or use the Tableau color shelf for automatic coloring.
-            </div>
-            <textarea
-              className="template-textarea"
-              value={settings.levelPalettes}
-              onChange={(e) => updateSetting("levelPalettes", e.target.value)}
-              rows={4}
-              placeholder='{"0": ["#4e79a7", "#f28e2c"], "1": ["#e15759", "#76b7b2"]}'
+
+        <CheckboxOption
+          label="Override individual node colors"
+          description="Pick custom colors for specific nodes. Overrides apply on top of whatever palette is selected above."
+          checked={settings.enableNodeColorOverrides}
+          onChange={(v) => updateSetting("enableNodeColorOverrides", v)}
+        />
+        {settings.enableNodeColorOverrides && (
+          <>
+            {!hasNodeColorOverrides && (
+              <div className="help-text" style={{ marginBottom: 8 }}>
+                No overrides yet. Click any node on the chart to pick its color, or add one manually below.
+              </div>
+            )}
+            <NodeColorEditor
+              overridesJson={settings.nodeColorOverrides}
+              onChange={(json) => updateSetting("nodeColorOverrides", json)}
             />
-          </div>
+          </>
         )}
+
         <RadioGroup
-          label="Flow Colors"
-          name="linkStyle"
-          value={settings.linkStyle}
-          onChange={(v) => updateSetting("linkStyle", v as ExtensionSettings["linkStyle"])}
-          options={LINK_STYLE_OPTIONS}
+          label="Flow colors"
+          name="flowStyle"
+          value={settings.flowStyle}
+          onChange={(v) => updateSetting("flowStyle", v as ExtensionSettings["flowStyle"])}
+          options={FLOW_STYLE_OPTIONS}
         />
+
+        {settings.sankeyType === "dropoff" && (
+          <RadioGroup
+            label="Drop-off node colors"
+            name="dropoffColorMode"
+            value={settings.dropoffColorMode}
+            onChange={(v) => updateSetting("dropoffColorMode", v as ExtensionSettings["dropoffColorMode"])}
+            options={DROPOFF_COLOR_OPTIONS}
+            renderExtra={(v) => {
+              if (v === "perNode") return (
+                <NodeColorEditor
+                  overridesJson={settings.dropoffNodeColors}
+                  onChange={(json) => updateSetting("dropoffNodeColors", json)}
+                />
+              );
+              return null;
+            }}
+          />
+        )}
 
         <SectionHeader title="Layout" />
         <RadioGroup
@@ -430,6 +602,39 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("nodeSort", v as ExtensionSettings["nodeSort"])}
           options={NODE_SORT_OPTIONS}
         />
+        <CheckboxOption
+          label="Override node order manually"
+          description="Drag nodes up or down to override the sort order. The sort above is applied first, then your adjustments are layered on top."
+          checked={settings.enableDrag}
+          onChange={(v) => updateSetting("enableDrag", v)}
+        />
+        {settings.enableDrag && (() => {
+          let savedOrder: Record<string, string[]> = {};
+          try {
+            const parsed: unknown = JSON.parse(settings.nodePositions);
+            if (parsed && typeof parsed === "object") savedOrder = parsed as Record<string, string[]>;
+          } catch { /* fallback */ }
+          const columnCount = Object.keys(savedOrder).length;
+          if (columnCount === 0) return (
+            <div className="help-text" style={{ marginLeft: 24, marginBottom: 12 }}>
+              No manual overrides yet. Drag nodes up or down on the chart to reorder them within a column. Nodes snap into place as you drag.
+            </div>
+          );
+          return (
+            <div style={{ marginLeft: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="help-text" style={{ margin: 0 }}>
+                Custom order set for {columnCount} column{columnCount === 1 ? "" : "s"}
+              </div>
+              <button
+                onClick={() => updateSetting("nodePositions", "{}")}
+                className="btn btn-cancel"
+                style={{ padding: "4px 12px", minWidth: "auto", fontSize: 12 }}
+              >
+                Reset
+              </button>
+            </div>
+          );
+        })()}
         <SliderOption
           label="Node spacing"
           description="Vertical gap between nodes in the same column"
@@ -447,74 +652,197 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("nodeWidth", v)}
         />
 
-        <SectionHeader title="Labels" />
-        <RadioGroup
-          label="Label Position"
-          name="labelPosition"
-          value={settings.labelPosition}
-          onChange={(v) => updateSetting("labelPosition", v as ExtensionSettings["labelPosition"])}
-          options={LABEL_POSITION_OPTIONS}
+        <SectionHeader title="Flows" />
+        <SliderOption
+          label="Flow opacity"
+          description="Drag left for more opaque, right for more transparent"
+          value={settings.flowOpacity}
+          min={0.05}
+          max={1}
+          step={0.05}
+          reversed
+          onChange={(v) => updateSetting("flowOpacity", v)}
         />
-        {settings.labelPosition === "inside" && (
+        <SliderOption
+          label="Flow gap"
+          description="Horizontal gap between nodes and flow connection points"
+          value={settings.flowGap}
+          min={0}
+          max={20}
+          onChange={(v) => updateSetting("flowGap", v)}
+        />
+        <CheckboxOption
+          label="Merge duplicate flows"
+          description="When multiple data rows connect the same two nodes, combine them into a single flow with the summed value"
+          checked={settings.aggregateFlows}
+          onChange={(v) => updateSetting("aggregateFlows", v)}
+        />
+
+        <SectionHeader title="Labels" />
+        <CheckboxOption
+          label="Show labels"
+          description="Master toggle for all text labels on the chart"
+          checked={allLabelsOn || labelsIndeterminate}
+          indeterminate={labelsIndeterminate}
+          onChange={handleAllLabelsToggle}
+        />
+        <div style={{ marginLeft: 24 }}>
+          <CheckboxOption
+            label="Node names"
+            description="Text labels on each node"
+            checked={settings.showLabels}
+            onChange={(v) => updateSetting("showLabels", v)}
+          />
+          {settings.showLabels && (
+            <RadioGroup
+              label="Node label position"
+              name="labelPosition"
+              value={settings.labelPosition}
+              onChange={(v) => updateSetting("labelPosition", v as ExtensionSettings["labelPosition"])}
+              options={LABEL_POSITION_OPTIONS}
+              renderExtra={(v) => v === "inside" ? (
+                <div style={{ marginLeft: 28, marginBottom: 8 }}>
+                  <RadioGroup
+                    label="Horizontal Alignment"
+                    name="labelAlign"
+                    value={settings.labelAlign}
+                    onChange={(v) => updateSetting("labelAlign", v as ExtensionSettings["labelAlign"])}
+                    options={LABEL_ALIGN_OPTIONS}
+                  />
+                  <RadioGroup
+                    label="Vertical Alignment"
+                    name="labelVerticalAlign"
+                    value={settings.labelVerticalAlign}
+                    onChange={(v) => updateSetting("labelVerticalAlign", v as ExtensionSettings["labelVerticalAlign"])}
+                    options={LABEL_VERTICAL_ALIGN_OPTIONS}
+                  />
+                </div>
+              ) : null}
+            />
+          )}
+          <CheckboxOption
+            label="Node values"
+            description="Numeric values below node names"
+            checked={settings.showValues}
+            onChange={(v) => updateSetting("showValues", v)}
+          />
+          <CheckboxOption
+            label="Flow values"
+            description="Values along flow paths (only on wide flows)"
+            checked={settings.showFlowLabels}
+            onChange={(v) => updateSetting("showFlowLabels", v)}
+          />
+          <CheckboxOption
+            label="Stage names"
+            description="Column headers at the top of the chart"
+            checked={settings.showStageLabels}
+            onChange={(v) => updateSetting("showStageLabels", v)}
+          />
+        </div>
+
+        {anyLabelShown && (
           <>
-            <RadioGroup
-              label="Horizontal Alignment"
-              name="labelAlign"
-              value={settings.labelAlign}
-              onChange={(v) => updateSetting("labelAlign", v as ExtensionSettings["labelAlign"])}
-              options={LABEL_ALIGN_OPTIONS}
+            <CheckboxOption
+              label="Override Tableau font"
+              description="By default, labels use the font from Tableau's workbook formatting. Check this to set custom size and weight per label type."
+              checked={settings.useCustomLabelFont}
+              onChange={(v) => updateSetting("useCustomLabelFont", v)}
             />
-            <RadioGroup
-              label="Vertical Alignment"
-              name="labelVerticalAlign"
-              value={settings.labelVerticalAlign}
-              onChange={(v) => updateSetting("labelVerticalAlign", v as ExtensionSettings["labelVerticalAlign"])}
-              options={LABEL_VERTICAL_ALIGN_OPTIONS}
-            />
+            {settings.useCustomLabelFont && (
+              <div style={{ marginLeft: 24 }}>
+                {settings.showLabels && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div className="radio-group-label">Node names</div>
+                    <SliderOption
+                      label="Font size"
+                      description=""
+                      value={settings.labelFontSize}
+                      min={8}
+                      max={24}
+                      onChange={(v) => updateSetting("labelFontSize", v)}
+                    />
+                    <CheckboxOption
+                      label="Bold"
+                      description=""
+                      checked={settings.labelFontWeight === "bold"}
+                      onChange={(v) => updateSetting("labelFontWeight", v ? "bold" : "normal")}
+                    />
+                  </div>
+                )}
+                {settings.showValues && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div className="radio-group-label">Node values</div>
+                    <SliderOption
+                      label="Font size"
+                      description=""
+                      value={settings.valueLabelFontSize}
+                      min={8}
+                      max={24}
+                      onChange={(v) => updateSetting("valueLabelFontSize", v)}
+                    />
+                    <CheckboxOption
+                      label="Bold"
+                      description=""
+                      checked={settings.valueLabelFontWeight === "bold"}
+                      onChange={(v) => updateSetting("valueLabelFontWeight", v ? "bold" : "normal")}
+                    />
+                  </div>
+                )}
+                {settings.showFlowLabels && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div className="radio-group-label">Flow values</div>
+                    <SliderOption
+                      label="Font size"
+                      description=""
+                      value={settings.flowLabelFontSize}
+                      min={8}
+                      max={24}
+                      onChange={(v) => updateSetting("flowLabelFontSize", v)}
+                    />
+                    <CheckboxOption
+                      label="Bold"
+                      description=""
+                      checked={settings.flowLabelFontWeight === "bold"}
+                      onChange={(v) => updateSetting("flowLabelFontWeight", v ? "bold" : "normal")}
+                    />
+                  </div>
+                )}
+                {settings.showStageLabels && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div className="radio-group-label">Stage names</div>
+                    <SliderOption
+                      label="Font size"
+                      description=""
+                      value={settings.stageLabelFontSize}
+                      min={8}
+                      max={24}
+                      onChange={(v) => updateSetting("stageLabelFontSize", v)}
+                    />
+                    <CheckboxOption
+                      label="Bold"
+                      description=""
+                      checked={settings.stageLabelFontWeight === "bold"}
+                      onChange={(v) => updateSetting("stageLabelFontWeight", v ? "bold" : "normal")}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
         <SectionHeader title="Display" />
         <CheckboxOption
-          label="Show values on nodes"
-          description="Display numeric values below node names"
-          checked={settings.showValues}
-          onChange={(v) => updateSetting("showValues", v)}
-        />
-        <CheckboxOption
-          label="Show labels on flows"
-          description="Display flow values along the link paths (only on wide links)"
-          checked={settings.showLinkLabels}
-          onChange={(v) => updateSetting("showLinkLabels", v)}
-        />
-        <CheckboxOption
-          label="Combine duplicate flows"
-          description="Merge flows between the same nodes into a single flow with summed values"
-          checked={settings.aggregateLinks}
-          onChange={(v) => updateSetting("aggregateLinks", v)}
-        />
-        <CheckboxOption
           label="Ignore empty values"
-          description="Skip rows where any level field is null or empty"
-          checked={settings.ignoreNulls}
-          onChange={(v) => updateSetting("ignoreNulls", v)}
+          description={settings.sankeyType === "dropoff"
+            ? "Always on in drop-off mode \u2014 empty values become drop-off nodes"
+            : "Skip rows where any stage field is null or empty"}
+          checked={settings.sankeyType === "dropoff" ? true : settings.ignoreNulls}
+          disabled={settings.sankeyType === "dropoff"}
+          onChange={(v) => {
+            if (settings.sankeyType !== "dropoff") updateSetting("ignoreNulls", v);
+          }}
         />
-        <CheckboxOption
-          label="Show legend"
-          description="Display a color legend for the chart"
-          checked={settings.showLegend}
-          onChange={(v) => updateSetting("showLegend", v)}
-        />
-        {settings.showLegend && (
-          <RadioGroup
-            label="Legend Position"
-            name="legendPosition"
-            value={settings.legendPosition}
-            onChange={(v) => updateSetting("legendPosition", v as ExtensionSettings["legendPosition"])}
-            options={LEGEND_POSITION_OPTIONS}
-          />
-        )}
-
         <SectionHeader title="Tooltips" />
         <CheckboxOption
           label="Show tooltips"
@@ -522,18 +850,21 @@ export const ConfigurationApp: React.FC = () => {
           checked={settings.showPercentages}
           onChange={(v) => updateSetting("showPercentages", v)}
         />
+        <CheckboxOption
+          label="Show Tableau tooltip"
+          description="Also show Tableau's native tooltip with the underlying data row. Disable if it conflicts with the extension tooltip."
+          checked={settings.showTableauTooltip}
+          onChange={(v) => updateSetting("showTableauTooltip", v)}
+        />
         {settings.showPercentages && (
-          <>
-            <RadioGroup
-              label="Tooltip Style"
-              name="tooltipMode"
-              value={settings.tooltipMode}
-              onChange={(v) => updateSetting("tooltipMode", v as ExtensionSettings["tooltipMode"])}
-              options={TOOLTIP_MODE_OPTIONS}
-            />
-            {settings.tooltipMode === "custom" && (
-              <div className="form-group">
-                <div className="radio-group-label">Custom Template</div>
+          <RadioGroup
+            label="Tooltip Style"
+            name="tooltipMode"
+            value={settings.tooltipMode}
+            onChange={(v) => updateSetting("tooltipMode", v as ExtensionSettings["tooltipMode"])}
+            options={TOOLTIP_MODE_OPTIONS}
+            renderExtra={(v) => v === "custom" ? (
+              <div className="form-group" style={{ marginLeft: 28, marginTop: 8 }}>
                 <textarea
                   className="template-textarea"
                   value={settings.tooltipTemplate}
@@ -544,42 +875,10 @@ export const ConfigurationApp: React.FC = () => {
                   Placeholders: {"{name}"}, {"{value}"}, {"{percentage}"}, {"{source}"}, {"{target}"}, {"{level}"}. Basic HTML allowed.
                 </div>
               </div>
-            )}
-          </>
-        )}
-
-        <SectionHeader title="Chart Type" />
-        <RadioGroup
-          label="Sankey Type"
-          name="sankeyType"
-          value={settings.sankeyType}
-          onChange={(v) => updateSetting("sankeyType", v as ExtensionSettings["sankeyType"])}
-          options={SANKEY_TYPE_OPTIONS}
-        />
-        {settings.sankeyType === "dropoff" && (
-          <RadioGroup
-            label="Drop-off Style"
-            name="dropoffStyle"
-            value={settings.dropoffStyle}
-            onChange={(v) => updateSetting("dropoffStyle", v as ExtensionSettings["dropoffStyle"])}
-            options={DROPOFF_STYLE_OPTIONS}
+            ) : null}
           />
         )}
 
-        <SectionHeader title="Interaction" />
-        <RadioGroup
-          label="Click Behavior"
-          name="clickAction"
-          value={settings.clickAction}
-          onChange={(v) => updateSetting("clickAction", v as ExtensionSettings["clickAction"])}
-          options={CLICK_ACTION_OPTIONS}
-        />
-        <CheckboxOption
-          label="Enable node dragging"
-          description="Allow repositioning nodes by dragging (may conflict with click selection)"
-          checked={settings.enableDrag}
-          onChange={(v) => updateSetting("enableDrag", v)}
-        />
       </div>
 
       <div className="button-group">
