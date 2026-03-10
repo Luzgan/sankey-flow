@@ -22,7 +22,6 @@ export function validateSankeyConfiguration(
   // Check for required fields
   const levelFields = encodingMap.level || [];
   const edgeFields = encodingMap.edge || [];
-
   // Sankey requires minimum 2 level fields (up to 5) and 1 edge field
   if (levelFields.length < 2) {
     errors.push(

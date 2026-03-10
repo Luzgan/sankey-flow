@@ -6,12 +6,11 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "build:dev": "node esbuild.config.mjs --dev",
-    "build:deploy": "node esbuild.config.mjs && ./copy-files.sh",
-    "copy-files": "./copy-files.sh",
     "dev": "node esbuild.config.mjs --dev --watch",
     "dev:standalone": "npm run build:dev && node dev/server.mjs",
-    "lint": "eslint SankeyViz.ts",
-    "lint:fix": "eslint SankeyViz.ts --fix",
+    "dev:tableau": "./dev/start-tableau.sh",
+    "lint": "eslint '**/*.{ts,tsx}' --ignore-pattern '*.js'",
+    "lint:fix": "eslint '**/*.{ts,tsx}' --ignore-pattern '*.js' --fix",
     "clean": "rm -f SankeyViz.js SankeyViz.js.map SankeyConfig.js SankeyConfig.js.map"
   },
   "keywords": [

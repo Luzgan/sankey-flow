@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
-import { ExtensionSettings } from "./ConfigurationDialog";
+import { ExtensionSettings } from "../utils/constants";
+import type { SankeyLink } from "../utils/sankey-utils";
 
 interface SankeyChartProps {
   summaryData: RowData[];
@@ -10,7 +11,11 @@ interface SankeyChartProps {
   settings: ExtensionSettings;
   onRenderComplete?: (result: {
     hoveringLayer: any;
-    linksPerTupleId: Map<number, any[]>;
+    flowsPerTupleId: Map<number, any[]>;
+    totalFlowValue: number;
+    layoutFlows: SankeyLink[];
+    hiddenLabelNodeIds: Set<number>;
+    dataWarnings: string[];
   }) => void;
 }
 
@@ -24,28 +29,71 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const sankeyInstanceRef = useRef<any>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => {
+      setShowExportMenu(false);
+      closeTimerRef.current = null;
+    }, 300);
+  }, []);
+
+  const handleExportSvg = useCallback(() => {
+    if (!svgRef.current) return;
+    import("../utils/export-utils").then(({ exportAsSvg }) => {
+      const innerSvg = svgRef.current?.querySelector("svg") as SVGSVGElement | null;
+      if (innerSvg) exportAsSvg(innerSvg);
+    });
+    setShowExportMenu(false);
+  }, []);
+
+  const handleExportPng = useCallback(() => {
+    if (!svgRef.current) return;
+    import("../utils/export-utils").then(({ exportAsPng }) => {
+      const innerSvg = svgRef.current?.querySelector("svg") as SVGSVGElement | null;
+      if (innerSvg) exportAsPng(innerSvg);
+    });
+    setShowExportMenu(false);
+  }, []);
+
+  // Clean up close timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const renderChart = async () => {
       if (!svgRef.current || !summaryData.length) return;
 
-      // Dynamically import the sankey utilities
-      const { Sankey } = await import("../utils/sankey-utils");
-      const { getEncodedData } = await import("../utils/sankey-utils");
+      const { Sankey, getEncodedData, resolveLabelsPostRender } = await import(
+        "../utils/sankey-utils"
+      );
 
-      // Clear previous content
       const svg = svgRef.current;
       svg.innerHTML = "";
 
-      // Get dimensions
       const width = svg.clientWidth || 800;
       const height = svg.clientHeight || 600;
 
       try {
-        // Get encoded data
-        const encodedData = getEncodedData(summaryData, encodingMap);
+        const encodedData = getEncodedData(
+          summaryData,
+          encodingMap,
+          settings
+        );
 
-        // Create Sankey visualization
+        const dataWarnings = encodedData.warnings || [];
+
         const sankey = await Sankey(
           encodedData,
           encodingMap,
@@ -56,17 +104,22 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
           settings
         );
 
-        // Store reference for cleanup
         sankeyInstanceRef.current = sankey;
-
-        // Append to SVG
         svg.appendChild(sankey.viz);
 
-        // Notify parent component
+        const hiddenLabelNodeIds = resolveLabelsPostRender(
+          svg,
+          sankey.layoutNodes
+        );
+
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
-            linksPerTupleId: sankey.linksPerTupleId,
+            flowsPerTupleId: sankey.flowsPerTupleId,
+            totalFlowValue: sankey.totalFlowValue,
+            layoutFlows: sankey.layoutFlows,
+            hiddenLabelNodeIds,
+            dataWarnings,
           });
         }
       } catch (error) {
@@ -76,7 +129,6 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
 
     renderChart();
 
-    // Cleanup function
     return () => {
       if (svgRef.current) {
         svgRef.current.innerHTML = "";
@@ -95,21 +147,26 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   // Handle resize
   useEffect(() => {
     const handleResize = async () => {
-      console.log("handleResize");
       if (!svgRef.current || !sankeyInstanceRef.current) return;
 
-      // Re-render on resize
       const svg = svgRef.current;
       svg.innerHTML = "";
-      console.log(svg.clientHeight);
+
       const width = svg.clientWidth || 800;
       const height = svg.clientHeight || 600;
 
       try {
-        const { Sankey } = await import("../utils/sankey-utils");
-        const { getEncodedData } = await import("../utils/sankey-utils");
+        const { Sankey, getEncodedData, resolveLabelsPostRender } = await import(
+          "../utils/sankey-utils"
+        );
 
-        const encodedData = getEncodedData(summaryData, encodingMap);
+        const encodedData = getEncodedData(
+          summaryData,
+          encodingMap,
+          settings
+        );
+
+        const dataWarnings = encodedData.warnings || [];
 
         const sankey = await Sankey(
           encodedData,
@@ -124,10 +181,19 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
         sankeyInstanceRef.current = sankey;
         svg.appendChild(sankey.viz);
 
+        const hiddenLabelNodeIds = resolveLabelsPostRender(
+          svg,
+          sankey.layoutNodes
+        );
+
         if (onRenderComplete) {
           onRenderComplete({
             hoveringLayer: sankey.hoveringLayer,
-            linksPerTupleId: sankey.linksPerTupleId,
+            flowsPerTupleId: sankey.flowsPerTupleId,
+            totalFlowValue: sankey.totalFlowValue,
+            layoutFlows: sankey.layoutFlows,
+            hiddenLabelNodeIds,
+            dataWarnings,
           });
         }
       } catch (error) {
@@ -136,7 +202,8 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
     };
 
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () =>
+      window.removeEventListener("resize", handleResize);
   }, [
     summaryData,
     encodingMap,
@@ -147,13 +214,34 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   ]);
 
   return (
-    <svg
-      ref={svgRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "block",
-      }}
-    />
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <svg
+        ref={svgRef}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      <div
+        className="export-button-container"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <button
+          className="export-button"
+          onClick={() => setShowExportMenu(!showExportMenu)}
+          title="Export chart"
+        >
+          &#x2913;
+        </button>
+        {showExportMenu && (
+          <div className="export-menu">
+            <button onClick={handleExportSvg}>Export SVG</button>
+            <button onClick={handleExportPng}>Export PNG</button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

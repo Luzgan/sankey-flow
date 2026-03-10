@@ -1,66 +1,131 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ErrorState } from "./ErrorState";
 import { WarningBanner } from "./WarningBanner";
 import { LoadingState } from "./LoadingState";
 import { SankeyChart } from "./SankeyChart";
 import { ValidationResult } from "../utils/validation-utils";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
-import { TableauSettings, getTableauEventType } from "../utils/tableau-api-utils";
-
-interface ExtensionSettings {
-  colorScheme: "default" | "colorblind" | "monochrome";
-}
+import {
+  TableauSettings,
+  getTableauEventType,
+  isAuthoringMode,
+} from "../utils/tableau-api-utils";
+import {
+  ExtensionSettings,
+  DEFAULT_SETTINGS,
+} from "../utils/constants";
+import type { SankeyLink } from "../utils/sankey-utils";
 
 interface SankeyAppProps {
   worksheet: any;
-  styles: any;
+  getStyles: () => any;
 }
 
-export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
-  // State management
+export const SankeyApp: React.FC<SankeyAppProps> = ({
+  worksheet,
+  getStyles,
+}) => {
+  const [styles, setStyles] = useState<any>(getStyles);
   const [summaryData, setSummaryData] = useState<RowData[]>([]);
   const [encodingMap, setEncodingMap] = useState<EncodingMap>({});
-  const [selectedMarks, setSelectedMarks] = useState<Map<number, boolean>>(
-    new Map()
-  );
-  const [hoveredMarks, setHoveredMarks] = useState<Map<number, boolean>>(
-    new Map()
-  );
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [selectedMarks, setSelectedMarks] = useState<
+    Map<number, boolean>
+  >(new Map());
+  const [hoveredMarks, setHoveredMarks] = useState<
+    Map<number, boolean>
+  >(new Map());
+  const [validation, setValidation] =
+    useState<ValidationResult | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [hoveringLayer, setHoveringLayer] = useState<any>(null);
-  const [linksPerTupleId, setLinksPerTupleId] = useState<Map<number, any[]>>(
-    new Map()
+  const [flowsPerTupleId, setFlowsPerTupleId] = useState<
+    Map<number, any[]>
+  >(new Map());
+  const [totalFlowValue, setTotalFlowValue] = useState(0);
+  const [layoutFlows, setLayoutFlows] = useState<SankeyLink[]>([]);
+  const [hiddenLabelNodeIds, setHiddenLabelNodeIds] = useState<Set<number>>(
+    new Set()
   );
-  const [settings, setSettings] = useState<ExtensionSettings>({
-    colorScheme: "default",
-  });
+  const [settings, setSettings] =
+    useState<ExtensionSettings>(DEFAULT_SETTINGS);
 
-  // Dynamic imports
   const [functionsLoaded, setFunctionsLoaded] = useState(false);
-  const [importedFunctions, setImportedFunctions] = useState<any>(null);
+  const [importedFunctions, setImportedFunctions] =
+    useState<any>(null);
 
-  // Helper to load settings from Tableau
+  // Per-node color picker state
+  const colorPickerRef = useRef<HTMLInputElement>(null);
+  const colorPickerNodeRef = useRef<string | null>(null);
+  const colorPickerIsDropoffRef = useRef<boolean>(false);
+
+
   const loadSettingsFromTableau = useCallback(() => {
-    const colorScheme = TableauSettings.get("colorScheme");
-    if (colorScheme) {
-      setSettings({
-        colorScheme: colorScheme as ExtensionSettings["colorScheme"],
-      });
+    const loaded: Partial<ExtensionSettings> = {};
+    for (const key of Object.keys(DEFAULT_SETTINGS) as Array<
+      keyof ExtensionSettings
+    >) {
+      const value = TableauSettings.get(key);
+      if (value !== undefined) {
+        if (typeof DEFAULT_SETTINGS[key] === "boolean") {
+          (loaded as any)[key] = value === "true";
+        } else if (typeof DEFAULT_SETTINGS[key] === "number") {
+          const parsed = Number(value);
+          if (!isNaN(parsed)) (loaded as any)[key] = parsed;
+        } else {
+          (loaded as any)[key] = value;
+        }
+      }
     }
+    setSettings({ ...DEFAULT_SETTINGS, ...loaded });
   }, []);
 
-  // Listen for settings changes
+  // Listen for settings changes (skip if triggered by our own drag save)
+  // Also re-read workbook formatting — common workflow is changing fonts alongside settings
   useEffect(() => {
     const cleanup = TableauSettings.addChangeListener(() => {
+      if (window.__sankeyDragSaving) return;
       loadSettingsFromTableau();
+      setStyles(getStyles());
     });
-    
+
     return cleanup;
-  }, [loadSettingsFromTableau]);
+  }, [loadSettingsFromTableau, getStyles]);
+
+  // Listen for worksheet formatting changes (font, color, etc.)
+  useEffect(() => {
+    const eventType = getTableauEventType();
+    if (!eventType?.WorkbookFormattingChanged) return;
+
+    const handleFormattingChange = () => {
+      setStyles(getStyles());
+    };
+
+    // The WorkbookFormattingChanged event is on the dashboard object for dashboard
+    // extensions and on worksheetContent for viz extensions. The types don't expose
+    // addEventListener on all possible targets, so we use any to attach safely.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tableau API event target varies by extension type
+    const target = (tableau.extensions as any).worksheetContent ?? (tableau.extensions as any).dashboardContent?.dashboard;
+    if (!target?.addEventListener) return;
+
+    let unregister: (() => void) | undefined;
+    try {
+      unregister = target.addEventListener(
+        eventType.WorkbookFormattingChanged,
+        handleFormattingChange
+      );
+    } catch {
+      // Event may not be available in older Tableau versions or mock
+      return;
+    }
+
+    return () => {
+      if (typeof unregister === "function") {
+        unregister();
+      }
+    };
+  }, [getStyles]);
 
   useEffect(() => {
-    // Dynamically import functions once
     const loadDependencies = async () => {
       try {
         const { getSummaryDataTable, getEncodingMap, getSelection } =
@@ -89,16 +154,27 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     loadDependencies();
   }, []);
 
-  // Load settings on component mount
   useEffect(() => {
     loadSettingsFromTableau();
   }, [loadSettingsFromTableau]);
 
-  // Render complete handler - CRITICAL: Must use useCallback to prevent infinite loops
+  const [dataWarnings, setDataWarnings] = useState<string[]>([]);
+
   const handleRenderComplete = useCallback(
-    (result: { hoveringLayer: any; linksPerTupleId: Map<number, any[]> }) => {
+    (result: {
+      hoveringLayer: any;
+      flowsPerTupleId: Map<number, any[]>;
+      totalFlowValue: number;
+      layoutFlows: SankeyLink[];
+      hiddenLabelNodeIds: Set<number>;
+      dataWarnings: string[];
+    }) => {
       setHoveringLayer(result.hoveringLayer);
-      setLinksPerTupleId(result.linksPerTupleId);
+      setFlowsPerTupleId(result.flowsPerTupleId);
+      setTotalFlowValue(result.totalFlowValue);
+      setLayoutFlows(result.layoutFlows);
+      setHiddenLabelNodeIds(result.hiddenLabelNodeIds);
+      setDataWarnings(result.dataWarnings);
     },
     []
   );
@@ -109,6 +185,9 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         return;
       }
 
+      // Re-read workbook formatting on every data update — picks up font changes
+      setStyles(getStyles());
+
       const {
         getSummaryDataTable,
         getEncodingMap,
@@ -116,13 +195,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         validateSankeyConfiguration,
       } = importedFunctions;
 
-      // Only show loading for initial load
       if (isInitial) {
         setIsInitialLoading(true);
       }
 
       try {
-        // Fetch data
         const [newSummaryData, newEncodingMap] = await Promise.all([
           getSummaryDataTable(worksheet),
           getEncodingMap(),
@@ -131,7 +208,6 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         setSummaryData(newSummaryData);
         setEncodingMap(newEncodingMap);
 
-        // Validate configuration
         const validationResult = validateSankeyConfiguration(
           newEncodingMap,
           newSummaryData
@@ -145,8 +221,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
           return;
         }
 
-        // Get selection
-        const newSelectedMarks = await getSelection(worksheet, newSummaryData);
+        const newSelectedMarks = await getSelection(
+          worksheet,
+          newSummaryData
+        );
         setSelectedMarks(newSelectedMarks);
       } catch (error) {
         console.error("Error updating data:", error);
@@ -161,7 +239,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
 
   useEffect(() => {
     if (worksheet && functionsLoaded) {
-      updateData(true); // Initial load - show loading
+      updateData(true);
     }
   }, [worksheet, functionsLoaded, updateData]);
 
@@ -174,20 +252,60 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     const handleClick = async (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onClick(e, selectedMarks, hoveredMarks);
-      await updateData(false); // User interaction - no loading
+      // In authoring mode, clicking a node opens a color picker for per-node overrides
+      if (isAuthoringMode()) {
+        const element = document.elementFromPoint(e.pageX, e.pageY);
+        if (element?.classList?.contains("node")) {
+          e.preventDefault();
+          e.stopPropagation();
+          const d3 = await import("d3");
+          const nodeData = d3.select(element).datum() as { id: string; name: string; color: string };
+          if (nodeData?.name && colorPickerRef.current) {
+            colorPickerNodeRef.current = nodeData.name;
+            colorPickerIsDropoffRef.current = nodeData.id?.startsWith("dropoff-") ?? false;
+            colorPickerRef.current.value = nodeData.color || "#4e79a7";
+            // Position near the clicked node
+            colorPickerRef.current.style.position = "fixed";
+            colorPickerRef.current.style.left = `${e.clientX}px`;
+            colorPickerRef.current.style.top = `${e.clientY}px`;
+            colorPickerRef.current.click();
+          }
+          return;
+        }
+      }
+
+      onClick(e, selectedMarks, hoveredMarks, layoutFlows);
+      await updateData(false);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onMouseMove(e, hoveredMarks, linksPerTupleId, hoveringLayer);
+      onMouseMove(
+        e,
+        hoveredMarks,
+        flowsPerTupleId,
+        hoveringLayer,
+        settings,
+        totalFlowValue,
+        layoutFlows,
+        hiddenLabelNodeIds
+      );
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
 
-      onMouseMove(e, hoveredMarks, linksPerTupleId, hoveringLayer);
+      onMouseMove(
+        e,
+        hoveredMarks,
+        flowsPerTupleId,
+        hoveringLayer,
+        settings,
+        totalFlowValue,
+        layoutFlows,
+        hiddenLabelNodeIds
+      );
     };
 
     document.body.addEventListener("click", handleClick);
@@ -196,7 +314,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
 
     return () => {
       document.body.removeEventListener("click", handleClick);
-      document.body.removeEventListener("mousemove", handleMouseMove);
+      document.body.removeEventListener(
+        "mousemove",
+        handleMouseMove
+      );
       document.body.removeEventListener("mouseout", handleMouseOut);
     };
   }, [
@@ -205,8 +326,12 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     validation,
     selectedMarks,
     hoveredMarks,
-    linksPerTupleId,
+    flowsPerTupleId,
     hoveringLayer,
+    settings,
+    totalFlowValue,
+    layoutFlows,
+    hiddenLabelNodeIds,
     updateData,
   ]);
 
@@ -215,7 +340,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
     if (!worksheet) return;
 
     const handleDataChange = () => {
-      updateData(false); // Data change - no loading
+      updateData(false);
     };
 
     const eventType = getTableauEventType();
@@ -232,24 +357,118 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
         );
       };
     }
-    
-    // Return empty cleanup function if no event listener was added
+
     return () => {};
   }, [worksheet, updateData]);
 
+  const handleDismissOnboarding = useCallback(() => {
+    TableauSettings.set("onboardingSeen", "true");
+    TableauSettings.save();
+    setSettings((prev) => ({ ...prev, onboardingSeen: true }));
+  }, []);
+
+  const handleNodeColorChange = useCallback((color: string) => {
+    const nodeName = colorPickerNodeRef.current;
+    if (!nodeName) return;
+
+    const isDropoff = colorPickerIsDropoffRef.current;
+    const settingKey = isDropoff ? "dropoffNodeColors" : "nodeColorOverrides";
+    const currentJson = isDropoff ? settings.dropoffNodeColors : settings.nodeColorOverrides;
+
+    let overrides: Record<string, string>;
+    try {
+      const parsed: unknown = JSON.parse(currentJson);
+      overrides = (parsed && typeof parsed === "object") ? parsed as Record<string, string> : {};
+    } catch {
+      overrides = {};
+    }
+    overrides[nodeName] = color;
+    const json = JSON.stringify(overrides);
+    TableauSettings.set(settingKey, json);
+    // Auto-enable node color overrides when picking a non-dropoff node color
+    if (!isDropoff && !settings.enableNodeColorOverrides) {
+      TableauSettings.set("enableNodeColorOverrides", "true");
+    }
+    TableauSettings.save();
+    setSettings((prev) => ({
+      ...prev,
+      [settingKey]: json,
+      ...(!isDropoff ? { enableNodeColorOverrides: true } : {}),
+    }));
+  }, [settings.nodeColorOverrides, settings.dropoffNodeColors, settings.enableNodeColorOverrides]);
+
+  // Attach native 'change' event (fires once on picker close, not continuously)
+  useEffect(() => {
+    const picker = colorPickerRef.current;
+    if (!picker) return;
+    const handler = (e: Event) => {
+      handleNodeColorChange((e.target as HTMLInputElement).value);
+    };
+    picker.addEventListener("change", handler);
+    return () => picker.removeEventListener("change", handler);
+  }, [handleNodeColorChange]);
+
+  const isAuthoring = isAuthoringMode();
+
+  const showOnboarding = !settings.onboardingSeen && !isInitialLoading &&
+    validation && !validation.isValid;
+
   return (
     <>
-      {/* Always render the main container to preserve React tree */}
-      <div style={{ width: "100%", height: "100%", position: "fixed" }}>
-        {/* Conditional rendering within the same tree */}
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          position: "fixed",
+        }}
+      >
         {isInitialLoading ? (
           <LoadingState />
+        ) : showOnboarding ? (
+          <div className="onboarding-overlay">
+            <div className="onboarding-card">
+              <h2 className="onboarding-title">Welcome to Sankey Flow</h2>
+              <div className="onboarding-steps">
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">1</div>
+                  <div>
+                    <strong>Add Stages</strong>
+                    <p>Drag at least 2 dimensions to the <em>Stage</em> encoding to define columns</p>
+                  </div>
+                </div>
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">2</div>
+                  <div>
+                    <strong>Add a Measure</strong>
+                    <p>Drag a measure to the <em>Flow</em> encoding to define flow sizes</p>
+                  </div>
+                </div>
+                <div className="onboarding-step">
+                  <div className="onboarding-step-number">3</div>
+                  <div>
+                    <strong>Configure (optional)</strong>
+                    <p>Right-click and choose <em>Configure</em> to customise colors and layout</p>
+                  </div>
+                </div>
+              </div>
+              <button className="onboarding-dismiss" onClick={handleDismissOnboarding}>
+                Got it
+              </button>
+            </div>
+          </div>
         ) : validation && !validation.isValid ? (
           <ErrorState validation={validation} />
         ) : (
           <>
-                        {validation && validation.warnings.length > 0 && (
-              <WarningBanner validation={validation} />
+            {isAuthoring && ((validation && validation.warnings.length > 0) || dataWarnings.length > 0) && (
+              <WarningBanner validation={{
+                isValid: true,
+                errors: [],
+                warnings: [
+                  ...(validation?.warnings || []),
+                  ...dataWarnings,
+                ],
+              }} />
             )}
             <SankeyChart
               summaryData={summaryData}
@@ -262,6 +481,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({ worksheet, styles }) => {
           </>
         )}
       </div>
+      <input
+        ref={colorPickerRef}
+        type="color"
+        style={{ opacity: 0, position: "fixed", pointerEvents: "none", width: 0, height: 0 }}
+      />
     </>
   );
 };

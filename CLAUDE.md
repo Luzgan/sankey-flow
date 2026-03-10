@@ -74,7 +74,7 @@ IMPORTANT: Complete these steps before writing any code.
 - Use strict TypeScript config (`"strict": true`)
 - Explicit return types on all public/exported functions
 - Prefer `interface` for object shapes; `type` for unions/intersections
-- Never use `any` — prefer `unknown` with type guards
+- NEVER use `any` under any circumstances — prefer `unknown` with type guards, or define proper interfaces. The only exception is pre-existing untyped third-party globals that cannot be typed, which must have an eslint-disable comment explaining why.
 - `const` over `let`; never `var`
 - Template literals over string concatenation
 - `??` over `||` for defaults; `?.` for null checks

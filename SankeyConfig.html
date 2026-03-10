@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- Extensions Library -->
-    <script src="./../lib/tableau.extensions.1.latest.min.js"></script>
+    <script src="./lib/tableau.extensions.1.latest.min.js"></script>
 
     <!-- Our configuration code (bundled with all dependencies) -->
     <script src="./SankeyConfig.js"></script>
@@ -18,26 +18,21 @@
         padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
           sans-serif;
-        background-color: #f8f9fa;
+        background-color: white;
       }
 
       #config-content {
         width: 100%;
         height: 100vh;
+        overflow-y: auto;
       }
 
       .config-container {
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        padding: 24px;
-        max-width: 500px;
-        margin: 20px auto;
-        min-height: 400px;
+        padding: 24px 24px 0;
       }
 
       .config-header {
-        margin-bottom: 24px;
+        margin-bottom: 8px;
         padding-bottom: 16px;
         border-bottom: 1px solid #e0e0e0;
       }
@@ -55,47 +50,127 @@
         font-size: 14px;
       }
 
+      /* Section headers */
+      .section-header {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #999;
+        margin: 28px 0 16px;
+        border-bottom: 1px solid #e0e0e0;
+        padding-bottom: 8px;
+      }
+
+      .section-header-first {
+        margin-top: 0;
+      }
+
+      /* Form groups */
       .form-group {
         margin-bottom: 20px;
       }
 
-      .form-group label {
-        display: block;
-        margin-bottom: 8px;
+      /* Radio groups */
+      .radio-group-label {
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+
+      .radio-options {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .radio-option {
+        display: grid;
+        grid-template-columns: 20px 1fr;
+        grid-template-rows: auto auto;
+        column-gap: 8px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: background-color 0.15s;
+      }
+
+      .radio-option:hover {
+        background-color: #f5f7fa;
+      }
+
+      .radio-option-selected {
+        background-color: #f0f4f9;
+        border-color: #c5d5e8;
+      }
+
+      .radio-option input[type="radio"] {
+        grid-row: 1;
+        grid-column: 1;
+        margin: 2px 0 0 0;
+        width: 16px;
+        height: 16px;
+        accent-color: #4e79a7;
+        cursor: pointer;
+      }
+
+      .radio-option-label {
+        grid-row: 1;
+        grid-column: 2;
+        font-size: 14px;
         font-weight: 500;
         color: #333;
       }
 
-      .form-group select {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 14px;
-        background-color: white;
-        box-sizing: border-box;
+      .radio-option-description {
+        grid-row: 2;
+        grid-column: 2;
+        font-size: 12px;
+        color: #888;
+        line-height: 1.3;
+        margin-top: 2px;
       }
 
-      .form-group select:focus {
-        outline: none;
-        border-color: #4e79a7;
-        box-shadow: 0 0 0 2px rgba(78, 121, 167, 0.2);
+      /* Checkbox groups */
+      .checkbox-group label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        color: #333;
+        font-size: 14px;
+      }
+
+      .checkbox-group input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #4e79a7;
+        cursor: pointer;
+        flex-shrink: 0;
       }
 
       .help-text {
-        margin-top: 6px;
+        margin-top: 4px;
+        margin-left: 24px;
         font-size: 12px;
-        color: #666;
+        color: #888;
         line-height: 1.4;
       }
 
+      /* Buttons */
       .button-group {
         display: flex;
         justify-content: flex-end;
         gap: 12px;
-        margin-top: 32px;
-        padding-top: 20px;
+        padding: 16px 24px;
         border-top: 1px solid #e0e0e0;
+        background: white;
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
       }
 
       .btn {
@@ -131,10 +206,178 @@
         border-color: #3d6a96;
       }
 
+      /* Custom palette editor */
+      .custom-palette-editor {
+        margin: 8px 0 16px 28px;
+        text-align: center;
+      }
+
+      .custom-palette-swatches {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+        justify-content: center;
+      }
+
+      .color-swatch {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+        background: none;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      .color-swatch::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      .color-swatch::-webkit-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
+
+      .color-swatch::-moz-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
+
+      .color-swatch:hover {
+        border-color: #999;
+      }
+
       .loading {
         text-align: center;
         padding: 20px;
         color: #666;
+      }
+
+      /* Slider controls */
+      .slider-group {
+        margin-bottom: 20px;
+      }
+
+      .slider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+
+      .slider-label {
+        font-weight: 500;
+        color: #333;
+        font-size: 14px;
+      }
+
+      .slider-value {
+        font-size: 13px;
+        color: #666;
+        font-weight: 500;
+        min-width: 30px;
+        text-align: right;
+      }
+
+      .slider-input {
+        width: 100%;
+        height: 6px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #e0e0e0;
+        border-radius: 3px;
+        outline: none;
+      }
+
+      .slider-input::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #4e79a7;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      .slider-input::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #4e79a7;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Custom template textarea */
+      .template-textarea {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+        resize: vertical;
+        min-height: 60px;
+        box-sizing: border-box;
+      }
+
+      .template-textarea:focus {
+        outline: none;
+        border-color: #4e79a7;
+        box-shadow: 0 0 0 2px rgba(78, 121, 167, 0.2);
+      }
+
+      /* Per-node color editor */
+      .node-color-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .node-color-name {
+        flex: 1;
+        font-size: 13px;
+        color: #333;
+      }
+
+      .node-color-remove {
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: #999;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+      }
+
+      .node-color-remove:hover {
+        color: #e15759;
+      }
+
+      .node-color-add {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .node-color-input {
+        flex: 1;
+        padding: 2px 6px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .node-color-input:focus {
+        outline: none;
+        border-color: #4e79a7;
       }
     </style>
   </head>
