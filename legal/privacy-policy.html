@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sankey Flow &mdash; Privacy Policy</title>
+  <style>
+    body { max-width: 680px; margin: 40px auto; padding: 0 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 18px; margin-top: 28px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    ul { padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Sankey Flow &mdash; Privacy Policy</h1>
+  <p class="subtitle">Effective date: March 11, 2026</p>
+
+  <h2>Overview</h2>
+  <p>Sankey Flow is a free Tableau viz extension created by Lukasz Holc. Your privacy is important to us. This policy explains what data the extension accesses and how it is handled.</p>
+
+  <h2>Data Collection</h2>
+  <p>Sankey Flow does <strong>not</strong> collect, store, transmit, or share any personal data or workbook data. Specifically:</p>
+  <ul>
+    <li>The extension reads summary data from the Tableau worksheet it is placed on using the Tableau Extensions API (<code>getSummaryDataReaderAsync</code>). This data never leaves your browser.</li>
+    <li>No data is sent to any external server, third-party service, or analytics platform.</li>
+    <li>No cookies, local storage, or tracking mechanisms are used to identify or profile users.</li>
+    <li>No personally identifiable information (PII) is collected at any time.</li>
+  </ul>
+
+  <h2>Sandboxed Extension</h2>
+  <p>When installed from the Tableau Exchange, Sankey Flow runs as a sandboxed extension. This means it is hosted by Tableau in a restricted environment that enforces Content Security Policy (CSP) rules, preventing any outbound network requests. The extension cannot communicate with external services even if it attempted to.</p>
+
+  <h2>Configuration Data</h2>
+  <p>User configuration choices (color palette, layout options, tooltip settings, etc.) are stored within the Tableau workbook using the Extensions API settings mechanism. These settings travel with the workbook and are not sent elsewhere.</p>
+
+  <h2>Third-Party Libraries</h2>
+  <p>The extension bundles open-source libraries (React, D3.js, d3-sankey, tinycolor2) directly in its JavaScript bundle. No external CDNs or remote resources are loaded at runtime.</p>
+
+  <h2>Changes to This Policy</h2>
+  <p>If this policy is updated, the revised version will be posted at this URL with an updated effective date.</p>
+
+  <h2>Contact</h2>
+  <p>For questions about this privacy policy, contact <a href="mailto:luk.holc@gmail.com">luk.holc@gmail.com</a>.</p>
+</body>
+</html>

@@ -21,12 +21,10 @@ npm run build
 echo "=== Deploying static files ==="
 cp SankeyViz.html SankeyViz.js SankeyViz.trex "$DEPLOY_DIR/"
 cp SankeyConfig.html SankeyConfig.js "$DEPLOY_DIR/"
+cp -r legal "$DEPLOY_DIR/"
 
-# Tableau Extensions API library (Tableau injects its own at runtime)
-# Copy local copy if available; not required — the script tag is a fallback
+# Tableau Extensions API library — required for network-enabled mode
 mkdir -p "$DEPLOY_DIR/lib"
-if [ -f dev/tableau-extensions.min.js ]; then
-  cp dev/tableau-extensions.min.js "$DEPLOY_DIR/lib/tableau.extensions.1.latest.min.js"
-fi
+cp lib/tableau.extensions.1.latest.min.js "$DEPLOY_DIR/lib/"
 
 echo "=== Done! Files deployed to $DEPLOY_DIR ==="
