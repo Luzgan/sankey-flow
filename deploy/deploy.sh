@@ -27,4 +27,8 @@ cp -r legal "$DEPLOY_DIR/"
 mkdir -p "$DEPLOY_DIR/lib"
 cp lib/tableau.extensions.1.latest.min.js "$DEPLOY_DIR/lib/"
 
+echo "=== Updating nginx config ==="
+sudo cp "$REPO_DIR/deploy/nginx/sankeyflow.conf" /etc/nginx/conf.d/sankeyflow.conf
+sudo nginx -t && sudo systemctl reload nginx
+
 echo "=== Done! Files deployed to $DEPLOY_DIR ==="
