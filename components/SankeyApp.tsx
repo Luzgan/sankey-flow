@@ -3,6 +3,7 @@ import { ErrorState } from "./ErrorState";
 import { WarningBanner } from "./WarningBanner";
 import { LoadingState } from "./LoadingState";
 import { SankeyChart } from "./SankeyChart";
+import { ConfigPanel } from "./ConfigPanel";
 import { ValidationResult } from "../utils/validation-utils";
 import { EncodingMap, RowData } from "../utils/tableau-utils";
 import {
@@ -58,6 +59,10 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
   const colorPickerNodeRef = useRef<string | null>(null);
   const colorPickerIsDropoffRef = useRef<boolean>(false);
 
+  // Config panel state
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  // Track whether we triggered the save to skip our own change listener
+  const selfSaveRef = useRef(false);
 
   const loadSettingsFromTableau = useCallback(() => {
     const loaded: Partial<ExtensionSettings> = {};
@@ -79,11 +84,15 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     setSettings({ ...DEFAULT_SETTINGS, ...loaded });
   }, []);
 
-  // Listen for settings changes (skip if triggered by our own drag save)
+  // Listen for settings changes (skip if triggered by our own save)
   // Also re-read workbook formatting — common workflow is changing fonts alongside settings
   useEffect(() => {
     const cleanup = TableauSettings.addChangeListener(() => {
       if (window.__sankeyDragSaving) return;
+      if (selfSaveRef.current) {
+        selfSaveRef.current = false;
+        return;
+      }
       loadSettingsFromTableau();
       setStyles(getStyles());
     });
@@ -361,6 +370,27 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     return () => {};
   }, [worksheet, updateData]);
 
+  // Auto-save a single setting to Tableau immediately
+  const handleSettingChange = useCallback(<K extends keyof ExtensionSettings>(
+    key: K,
+    value: ExtensionSettings[K]
+  ): void => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    selfSaveRef.current = true;
+    TableauSettings.set(key, String(value));
+    TableauSettings.save();
+  }, []);
+
+  // Auto-save multiple settings at once
+  const handleBatchSettingChange = useCallback((changes: Partial<ExtensionSettings>): void => {
+    setSettings((prev) => ({ ...prev, ...changes }));
+    selfSaveRef.current = true;
+    for (const [key, value] of Object.entries(changes)) {
+      TableauSettings.set(key, String(value));
+    }
+    TableauSettings.save();
+  }, []);
+
   const handleDismissOnboarding = useCallback(() => {
     TableauSettings.set("onboardingSeen", "true");
     TableauSettings.save();
@@ -447,7 +477,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div className="onboarding-step-number">3</div>
                   <div>
                     <strong>Configure (optional)</strong>
-                    <p>Right-click and choose <em>Configure</em> to customise colors and layout</p>
+                    <p>Click the gear icon to customise colors and layout</p>
                   </div>
                 </div>
               </div>
@@ -486,6 +516,28 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
         type="color"
         style={{ opacity: 0, position: "fixed", pointerEvents: "none", width: 0, height: 0 }}
       />
+      {isAuthoring && (
+        <>
+          <button
+            className="cp-gear-btn"
+            onClick={() => setIsConfigOpen((prev) => !prev)}
+            title="Configure"
+            type="button"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M16.18 12.32a1.25 1.25 0 00.25 1.38l.04.04a1.52 1.52 0 11-2.15 2.15l-.04-.04a1.25 1.25 0 00-1.38-.25 1.25 1.25 0 00-.76 1.15v.12a1.52 1.52 0 01-3.03 0v-.06a1.25 1.25 0 00-.82-1.15 1.25 1.25 0 00-1.38.25l-.04.04a1.52 1.52 0 11-2.15-2.15l.04-.04a1.25 1.25 0 00.25-1.38 1.25 1.25 0 00-1.15-.76h-.12a1.52 1.52 0 010-3.03h.06a1.25 1.25 0 001.15-.82 1.25 1.25 0 00-.25-1.38l-.04-.04a1.52 1.52 0 112.15-2.15l.04.04a1.25 1.25 0 001.38.25h.06a1.25 1.25 0 00.76-1.15v-.12a1.52 1.52 0 013.03 0v.06a1.25 1.25 0 00.76 1.15 1.25 1.25 0 001.38-.25l.04-.04a1.52 1.52 0 112.15 2.15l-.04.04a1.25 1.25 0 00-.25 1.38v.06a1.25 1.25 0 001.15.76h.12a1.52 1.52 0 010 3.03h-.06a1.25 1.25 0 00-1.15.76z" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </button>
+          <ConfigPanel
+            isOpen={isConfigOpen}
+            onClose={() => setIsConfigOpen(false)}
+            settings={settings}
+            onSettingChange={handleSettingChange}
+            onBatchSettingChange={handleBatchSettingChange}
+          />
+        </>
+      )}
     </>
   );
 };

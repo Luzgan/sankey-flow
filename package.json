@@ -11,7 +11,7 @@
     "dev:tableau": "./dev/start-tableau.sh",
     "lint": "eslint '**/*.{ts,tsx}' --ignore-pattern '*.js'",
     "lint:fix": "eslint '**/*.{ts,tsx}' --ignore-pattern '*.js' --fix",
-    "clean": "rm -f SankeyViz.js SankeyViz.js.map SankeyConfig.js SankeyConfig.js.map"
+    "clean": "rm -f SankeyViz.js SankeyViz.js.map"
   },
   "keywords": [
     "tableau",

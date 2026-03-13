@@ -20,7 +20,6 @@ npm run build
 
 echo "=== Deploying static files ==="
 cp SankeyViz.html SankeyViz.js SankeyViz.trex "$DEPLOY_DIR/"
-cp SankeyConfig.html SankeyConfig.js "$DEPLOY_DIR/"
 cp -r legal "$DEPLOY_DIR/"
 
 # Tableau Extensions API library — required for network-enabled mode

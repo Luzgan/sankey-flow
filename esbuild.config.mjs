@@ -4,7 +4,7 @@ const isDev = process.argv.includes("--dev");
 const isWatch = process.argv.includes("--watch");
 
 const config = {
-  entryPoints: ["SankeyViz.tsx", "SankeyConfig.tsx"],
+  entryPoints: ["SankeyViz.tsx"],
   bundle: true,
   outdir: ".",
   format: "iife",
