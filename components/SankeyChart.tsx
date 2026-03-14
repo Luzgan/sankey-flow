@@ -9,6 +9,8 @@ interface SankeyChartProps {
   selectedMarks: Map<number, boolean>;
   styles: any;
   settings: ExtensionSettings;
+  isAuthoring?: boolean;
+  onConfigToggle?: () => void;
   onRenderComplete?: (result: {
     hoveringLayer: any;
     flowsPerTupleId: Map<number, any[]>;
@@ -25,6 +27,8 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   selectedMarks,
   styles,
   settings,
+  isAuthoring,
+  onConfigToggle,
   onRenderComplete,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -224,14 +228,26 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
         }}
       />
       <div
-        className="export-button-container"
+        className="toolbar-container"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
+        {isAuthoring && onConfigToggle && (
+          <button
+            className="toolbar-btn"
+            data-tooltip="Configure"
+            onClick={onConfigToggle}
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M16.18 12.32a1.25 1.25 0 00.25 1.38l.04.04a1.52 1.52 0 11-2.15 2.15l-.04-.04a1.25 1.25 0 00-1.38-.25 1.25 1.25 0 00-.76 1.15v.12a1.52 1.52 0 01-3.03 0v-.06a1.25 1.25 0 00-.82-1.15 1.25 1.25 0 00-1.38.25l-.04.04a1.52 1.52 0 11-2.15-2.15l.04-.04a1.25 1.25 0 00.25-1.38 1.25 1.25 0 00-1.15-.76h-.12a1.52 1.52 0 010-3.03h.06a1.25 1.25 0 001.15-.82 1.25 1.25 0 00-.25-1.38l-.04-.04a1.52 1.52 0 112.15-2.15l.04.04a1.25 1.25 0 001.38.25h.06a1.25 1.25 0 00.76-1.15v-.12a1.52 1.52 0 013.03 0v.06a1.25 1.25 0 00.76 1.15 1.25 1.25 0 001.38-.25l.04-.04a1.52 1.52 0 112.15 2.15l-.04.04a1.25 1.25 0 00-.25 1.38v.06a1.25 1.25 0 001.15.76h.12a1.52 1.52 0 010 3.03h-.06a1.25 1.25 0 00-1.15.76z" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </button>
+        )}
         <button
-          className="export-button"
+          className="toolbar-btn"
+          data-tooltip="Export"
           onClick={() => setShowExportMenu(!showExportMenu)}
-          title="Export chart"
         >
           &#x2913;
         </button>
