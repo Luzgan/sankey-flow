@@ -76,7 +76,7 @@ const SANKEY_TYPE_OPTIONS: RadioOption[] = [
 
 const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
   { value: "default", label: "Default", description: "All drop-off nodes use the standard red color" },
-  { value: "perNode", label: "Per node", description: "Override colors for individual drop-off nodes" },
+  { value: "perStage", label: "Per stage", description: "Drop-off nodes inherit the color palette of their stage" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -383,17 +383,18 @@ const AccordionSection: React.FC<{
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-}> = ({ title, isOpen, onToggle, children }) => (
-  <div className="cp-accordion-section">
-    <button className="cp-accordion-header" onClick={onToggle} type="button">
-      <span className="cp-accordion-title">{title}</span>
+  nested?: boolean;
+}> = ({ title, isOpen, onToggle, children, nested }) => (
+  <div className={nested ? "cp-accordion-nested" : "cp-accordion-section"}>
+    <button className={nested ? "cp-accordion-nested-header" : "cp-accordion-header"} onClick={onToggle} type="button">
+      <span className={nested ? "cp-accordion-nested-title" : "cp-accordion-title"}>{title}</span>
       <span className={`cp-accordion-chevron${isOpen ? " cp-accordion-chevron-open" : ""}`}>
         <svg width="12" height="12" viewBox="0 0 12 12">
           <path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </span>
     </button>
-    {isOpen && <div className="cp-accordion-body">{children}</div>}
+    {isOpen && <div className={nested ? "cp-accordion-nested-body" : "cp-accordion-body"}>{children}</div>}
   </div>
 );
 
@@ -484,150 +485,221 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             />
           </AccordionSection>
 
-          {/* Colors */}
-          <AccordionSection title="Colors" isOpen={openSections.has("colors")} onToggle={() => toggleSection("colors")}>
-            <RadioGroup
-              label="Node colors"
-              name="colorScheme"
-              value={settings.colorScheme}
-              onChange={(v) => onSettingChange("colorScheme", v as ExtensionSettings["colorScheme"])}
-              options={COLOR_SCHEME_OPTIONS}
-              renderExtra={(v) => {
-                if (v === "custom") return (
-                  <CustomPaletteEditor
-                    colorsJson={settings.customColors}
-                    onChange={(json) => onSettingChange("customColors", json)}
-                  />
-                );
-                if (v === "perStage") return (
-                  <StagePaletteEditor
-                    palettesJson={settings.stagePalettes}
-                    onChange={(json) => onSettingChange("stagePalettes", json)}
-                  />
-                );
-                return null;
-              }}
-            />
-
-            <CheckboxOption
-              label="Override individual node colors"
-              description="Pick custom colors for specific nodes"
-              checked={settings.enableNodeColorOverrides}
-              onChange={(v) => onSettingChange("enableNodeColorOverrides", v)}
-            />
-            {settings.enableNodeColorOverrides && (
-              <>
-                {!hasNodeColorOverrides && (
-                  <div className="cp-help-text" style={{ marginBottom: 8 }}>
-                    No overrides yet. Click any node on the chart to pick its color.
-                  </div>
-                )}
-                <NodeColorEditor
-                  overridesJson={settings.nodeColorOverrides}
-                  onChange={(json) => onSettingChange("nodeColorOverrides", json)}
-                />
-              </>
-            )}
-
-            <RadioGroup
-              label="Flow colors"
-              name="flowStyle"
-              value={settings.flowStyle}
-              onChange={(v) => onSettingChange("flowStyle", v as ExtensionSettings["flowStyle"])}
-              options={FLOW_STYLE_OPTIONS}
-            />
-
-            {settings.sankeyType === "dropoff" && (
+          {/* Nodes */}
+          <AccordionSection title="Nodes" isOpen={openSections.has("nodes")} onToggle={() => toggleSection("nodes")}>
+            {/* Colors */}
+            <AccordionSection nested title="Colors" isOpen={openSections.has("nodes.colors")} onToggle={() => toggleSection("nodes.colors")}>
               <RadioGroup
-                label="Drop-off node colors"
-                name="dropoffColorMode"
-                value={settings.dropoffColorMode}
-                onChange={(v) => onSettingChange("dropoffColorMode", v as ExtensionSettings["dropoffColorMode"])}
-                options={DROPOFF_COLOR_OPTIONS}
+                label="Color scheme"
+                name="colorScheme"
+                value={settings.colorScheme}
+                onChange={(v) => onSettingChange("colorScheme", v as ExtensionSettings["colorScheme"])}
+                options={COLOR_SCHEME_OPTIONS}
                 renderExtra={(v) => {
-                  if (v === "perNode") return (
-                    <NodeColorEditor
-                      overridesJson={settings.dropoffNodeColors}
-                      onChange={(json) => onSettingChange("dropoffNodeColors", json)}
+                  if (v === "custom") return (
+                    <CustomPaletteEditor
+                      colorsJson={settings.customColors}
+                      onChange={(json) => onSettingChange("customColors", json)}
+                    />
+                  );
+                  if (v === "perStage") return (
+                    <StagePaletteEditor
+                      palettesJson={settings.stagePalettes}
+                      onChange={(json) => onSettingChange("stagePalettes", json)}
                     />
                   );
                   return null;
                 }}
               />
-            )}
-          </AccordionSection>
 
-          {/* Layout */}
-          <AccordionSection title="Layout" isOpen={openSections.has("layout")} onToggle={() => toggleSection("layout")}>
-            <RadioGroup
-              label="Node Distribution"
-              name="nodeAlignment"
-              value={settings.nodeAlignment}
-              onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
-              options={NODE_ALIGNMENT_OPTIONS}
-            />
-            <RadioGroup
-              label="Node Sort Order"
-              name="nodeSort"
-              value={settings.nodeSort}
-              onChange={(v) => onSettingChange("nodeSort", v as ExtensionSettings["nodeSort"])}
-              options={NODE_SORT_OPTIONS}
-            />
-            <CheckboxOption
-              label="Override node order manually"
-              description="Drag nodes up or down to override the sort order"
-              checked={settings.enableDrag}
-              onChange={(v) => onSettingChange("enableDrag", v)}
-            />
-            {settings.enableDrag && (() => {
-              let savedOrder: Record<string, string[]> = {};
-              try {
-                const parsed: unknown = JSON.parse(settings.nodePositions);
-                if (parsed && typeof parsed === "object") savedOrder = parsed as Record<string, string[]>;
-              } catch { /* fallback */ }
-              const columnCount = Object.keys(savedOrder).length;
-              if (columnCount === 0) return (
-                <div className="cp-help-text" style={{ marginLeft: 24, marginBottom: 12 }}>
-                  No manual overrides yet. Drag nodes on the chart to reorder them.
-                </div>
-              );
-              return (
-                <div style={{ marginLeft: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                  <div className="cp-help-text" style={{ margin: 0 }}>
-                    Custom order set for {columnCount} column{columnCount === 1 ? "" : "s"}
+              <CheckboxOption
+                label="Override individual node colors"
+                description="Pick custom colors for specific nodes"
+                checked={settings.enableNodeColorOverrides}
+                onChange={(v) => onSettingChange("enableNodeColorOverrides", v)}
+              />
+              {settings.enableNodeColorOverrides && (
+                <>
+                  {!hasNodeColorOverrides && (
+                    <div className="cp-help-text" style={{ marginBottom: 8 }}>
+                      No overrides yet. Click any node on the chart to pick its color.
+                    </div>
+                  )}
+                  <NodeColorEditor
+                    overridesJson={settings.nodeColorOverrides}
+                    onChange={(json) => onSettingChange("nodeColorOverrides", json)}
+                  />
+                </>
+              )}
+
+              {settings.sankeyType === "dropoff" && (
+                <>
+                  <RadioGroup
+                    label="Drop-off node colors"
+                    name="dropoffColorMode"
+                    value={settings.dropoffColorMode}
+                    onChange={(v) => onSettingChange("dropoffColorMode", v as ExtensionSettings["dropoffColorMode"])}
+                    options={DROPOFF_COLOR_OPTIONS}
+                  />
+                  <CheckboxOption
+                    label="Override individual drop-off colors"
+                    description="Pick custom colors for specific drop-off nodes"
+                    checked={settings.enableDropoffColorOverrides}
+                    onChange={(v) => onSettingChange("enableDropoffColorOverrides", v)}
+                  />
+                  {settings.enableDropoffColorOverrides && (
+                    <NodeColorEditor
+                      overridesJson={settings.dropoffNodeColors}
+                      onChange={(json) => onSettingChange("dropoffNodeColors", json)}
+                    />
+                  )}
+                </>
+              )}
+            </AccordionSection>
+
+            {/* Layout */}
+            <AccordionSection nested title="Layout" isOpen={openSections.has("nodes.layout")} onToggle={() => toggleSection("nodes.layout")}>
+              <RadioGroup
+                label="Distribution"
+                name="nodeAlignment"
+                value={settings.nodeAlignment}
+                onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
+                options={NODE_ALIGNMENT_OPTIONS}
+              />
+              <RadioGroup
+                label="Sort order"
+                name="nodeSort"
+                value={settings.nodeSort}
+                onChange={(v) => onSettingChange("nodeSort", v as ExtensionSettings["nodeSort"])}
+                options={NODE_SORT_OPTIONS}
+              />
+              <CheckboxOption
+                label="Drag to reorder"
+                description="Drag nodes up or down to override the sort order"
+                checked={settings.enableDrag}
+                onChange={(v) => onSettingChange("enableDrag", v)}
+              />
+              {settings.enableDrag && (() => {
+                let savedOrder: Record<string, string[]> = {};
+                try {
+                  const parsed: unknown = JSON.parse(settings.nodePositions);
+                  if (parsed && typeof parsed === "object") savedOrder = parsed as Record<string, string[]>;
+                } catch { /* fallback */ }
+                const columnCount = Object.keys(savedOrder).length;
+                if (columnCount === 0) return (
+                  <div className="cp-help-text" style={{ marginLeft: 24, marginBottom: 12 }}>
+                    No manual overrides yet. Drag nodes on the chart to reorder them.
                   </div>
-                  <button
-                    onClick={() => onSettingChange("nodePositions", "{}")}
-                    className="cp-btn cp-btn-secondary"
-                    style={{ padding: "4px 12px", minWidth: "auto", fontSize: 12 }}
-                  >
-                    Reset
-                  </button>
+                );
+                return (
+                  <div style={{ marginLeft: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className="cp-help-text" style={{ margin: 0 }}>
+                      Custom order set for {columnCount} column{columnCount === 1 ? "" : "s"}
+                    </div>
+                    <button
+                      onClick={() => onSettingChange("nodePositions", "{}")}
+                      className="cp-btn cp-btn-secondary"
+                      style={{ padding: "4px 12px", minWidth: "auto", fontSize: 12 }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                );
+              })()}
+              <SliderOption
+                label="Spacing"
+                description="Vertical gap between nodes in the same column"
+                value={settings.nodePadding}
+                min={NODE_PADDING_MIN}
+                max={NODE_PADDING_MAX}
+                onChange={(v) => onSettingChange("nodePadding", v)}
+              />
+              <SliderOption
+                label="Width"
+                description="Horizontal width of each node rectangle"
+                value={settings.nodeWidth}
+                min={NODE_WIDTH_MIN}
+                max={NODE_WIDTH_MAX}
+                onChange={(v) => onSettingChange("nodeWidth", v)}
+              />
+            </AccordionSection>
+
+            {/* Labels */}
+            <AccordionSection nested title="Labels" isOpen={openSections.has("nodes.labels")} onToggle={() => toggleSection("nodes.labels")}>
+              <CheckboxOption
+                label="Show node names"
+                description="Text labels on each node"
+                checked={settings.showLabels}
+                onChange={(v) => onSettingChange("showLabels", v)}
+              />
+              {settings.showLabels && (
+                <div style={{ marginLeft: 20 }}>
+                  <RadioGroup
+                    label="Label position"
+                    name="labelPosition"
+                    value={settings.labelPosition}
+                    onChange={(v) => onSettingChange("labelPosition", v as ExtensionSettings["labelPosition"])}
+                    options={LABEL_POSITION_OPTIONS}
+                    renderExtra={(v) => v === "inside" ? (
+                      <div style={{ marginLeft: 24, marginBottom: 8 }}>
+                        <RadioGroup
+                          label="Horizontal Alignment"
+                          name="labelAlign"
+                          value={settings.labelAlign}
+                          onChange={(v) => onSettingChange("labelAlign", v as ExtensionSettings["labelAlign"])}
+                          options={LABEL_ALIGN_OPTIONS}
+                        />
+                        <RadioGroup
+                          label="Vertical Alignment"
+                          name="labelVerticalAlign"
+                          value={settings.labelVerticalAlign}
+                          onChange={(v) => onSettingChange("labelVerticalAlign", v as ExtensionSettings["labelVerticalAlign"])}
+                          options={LABEL_VERTICAL_ALIGN_OPTIONS}
+                        />
+                      </div>
+                    ) : null}
+                  />
                 </div>
-              );
-            })()}
-            <SliderOption
-              label="Node spacing"
-              description="Vertical gap between nodes in the same column"
-              value={settings.nodePadding}
-              min={NODE_PADDING_MIN}
-              max={NODE_PADDING_MAX}
-              onChange={(v) => onSettingChange("nodePadding", v)}
-            />
-            <SliderOption
-              label="Node width"
-              description="Horizontal width of each node rectangle"
-              value={settings.nodeWidth}
-              min={NODE_WIDTH_MIN}
-              max={NODE_WIDTH_MAX}
-              onChange={(v) => onSettingChange("nodeWidth", v)}
+              )}
+              <CheckboxOption
+                label="Show node values"
+                description="Numeric values below node names"
+                checked={settings.showValues}
+                onChange={(v) => onSettingChange("showValues", v)}
+              />
+              <CheckboxOption
+                label="Show stage names"
+                description="Column headers at the top of the chart"
+                checked={settings.showStageLabels}
+                onChange={(v) => onSettingChange("showStageLabels", v)}
+              />
+            </AccordionSection>
+
+            {/* Data */}
+            <CheckboxOption
+              label="Ignore empty values"
+              description={settings.sankeyType === "dropoff"
+                ? "Always on in drop-off mode"
+                : "Skip rows where any stage field is null or empty"}
+              checked={settings.sankeyType === "dropoff" ? true : settings.ignoreNulls}
+              disabled={settings.sankeyType === "dropoff"}
+              onChange={(v) => {
+                if (settings.sankeyType !== "dropoff") onSettingChange("ignoreNulls", v);
+              }}
             />
           </AccordionSection>
 
           {/* Flows */}
           <AccordionSection title="Flows" isOpen={openSections.has("flows")} onToggle={() => toggleSection("flows")}>
+            <RadioGroup
+              label="Color"
+              name="flowStyle"
+              value={settings.flowStyle}
+              onChange={(v) => onSettingChange("flowStyle", v as ExtensionSettings["flowStyle"])}
+              options={FLOW_STYLE_OPTIONS}
+            />
             <SliderOption
-              label="Flow opacity"
+              label="Opacity"
               description="Drag left for more opaque, right for more transparent"
               value={settings.flowOpacity}
               min={0.05}
@@ -637,7 +709,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               onChange={(v) => onSettingChange("flowOpacity", v)}
             />
             <SliderOption
-              label="Flow gap"
+              label="Gap"
               description="Horizontal gap between nodes and flow connection points"
               value={settings.flowGap}
               min={0}
@@ -650,127 +722,11 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               checked={settings.aggregateFlows}
               onChange={(v) => onSettingChange("aggregateFlows", v)}
             />
-          </AccordionSection>
-
-          {/* Labels */}
-          <AccordionSection title="Labels" isOpen={openSections.has("labels")} onToggle={() => toggleSection("labels")}>
             <CheckboxOption
-              label="Show labels"
-              description="Master toggle for all text labels"
-              checked={allLabelsOn || labelsIndeterminate}
-              indeterminate={labelsIndeterminate}
-              onChange={handleAllLabelsToggle}
-            />
-            <div style={{ marginLeft: 20 }}>
-              <CheckboxOption
-                label="Node names"
-                description="Text labels on each node"
-                checked={settings.showLabels}
-                onChange={(v) => onSettingChange("showLabels", v)}
-              />
-              {settings.showLabels && (
-                <RadioGroup
-                  label="Node label position"
-                  name="labelPosition"
-                  value={settings.labelPosition}
-                  onChange={(v) => onSettingChange("labelPosition", v as ExtensionSettings["labelPosition"])}
-                  options={LABEL_POSITION_OPTIONS}
-                  renderExtra={(v) => v === "inside" ? (
-                    <div style={{ marginLeft: 24, marginBottom: 8 }}>
-                      <RadioGroup
-                        label="Horizontal Alignment"
-                        name="labelAlign"
-                        value={settings.labelAlign}
-                        onChange={(v) => onSettingChange("labelAlign", v as ExtensionSettings["labelAlign"])}
-                        options={LABEL_ALIGN_OPTIONS}
-                      />
-                      <RadioGroup
-                        label="Vertical Alignment"
-                        name="labelVerticalAlign"
-                        value={settings.labelVerticalAlign}
-                        onChange={(v) => onSettingChange("labelVerticalAlign", v as ExtensionSettings["labelVerticalAlign"])}
-                        options={LABEL_VERTICAL_ALIGN_OPTIONS}
-                      />
-                    </div>
-                  ) : null}
-                />
-              )}
-              <CheckboxOption
-                label="Node values"
-                description="Numeric values below node names"
-                checked={settings.showValues}
-                onChange={(v) => onSettingChange("showValues", v)}
-              />
-              <CheckboxOption
-                label="Flow values"
-                description="Values along flow paths (only on wide flows)"
-                checked={settings.showFlowLabels}
-                onChange={(v) => onSettingChange("showFlowLabels", v)}
-              />
-              <CheckboxOption
-                label="Stage names"
-                description="Column headers at the top of the chart"
-                checked={settings.showStageLabels}
-                onChange={(v) => onSettingChange("showStageLabels", v)}
-              />
-            </div>
-
-            {anyLabelShown && (
-              <>
-                <CheckboxOption
-                  label="Override Tableau font"
-                  description="Set custom size and weight per label type"
-                  checked={settings.useCustomLabelFont}
-                  onChange={(v) => onSettingChange("useCustomLabelFont", v)}
-                />
-                {settings.useCustomLabelFont && (
-                  <div style={{ marginLeft: 20 }}>
-                    {settings.showLabels && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div className="cp-radio-group-label">Node names</div>
-                        <SliderOption label="Font size" description="" value={settings.labelFontSize} min={8} max={24} onChange={(v) => onSettingChange("labelFontSize", v)} />
-                        <CheckboxOption label="Bold" description="" checked={settings.labelFontWeight === "bold"} onChange={(v) => onSettingChange("labelFontWeight", v ? "bold" : "normal")} />
-                      </div>
-                    )}
-                    {settings.showValues && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div className="cp-radio-group-label">Node values</div>
-                        <SliderOption label="Font size" description="" value={settings.valueLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("valueLabelFontSize", v)} />
-                        <CheckboxOption label="Bold" description="" checked={settings.valueLabelFontWeight === "bold"} onChange={(v) => onSettingChange("valueLabelFontWeight", v ? "bold" : "normal")} />
-                      </div>
-                    )}
-                    {settings.showFlowLabels && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div className="cp-radio-group-label">Flow values</div>
-                        <SliderOption label="Font size" description="" value={settings.flowLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("flowLabelFontSize", v)} />
-                        <CheckboxOption label="Bold" description="" checked={settings.flowLabelFontWeight === "bold"} onChange={(v) => onSettingChange("flowLabelFontWeight", v ? "bold" : "normal")} />
-                      </div>
-                    )}
-                    {settings.showStageLabels && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div className="cp-radio-group-label">Stage names</div>
-                        <SliderOption label="Font size" description="" value={settings.stageLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("stageLabelFontSize", v)} />
-                        <CheckboxOption label="Bold" description="" checked={settings.stageLabelFontWeight === "bold"} onChange={(v) => onSettingChange("stageLabelFontWeight", v ? "bold" : "normal")} />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </AccordionSection>
-
-          {/* Display */}
-          <AccordionSection title="Display" isOpen={openSections.has("display")} onToggle={() => toggleSection("display")}>
-            <CheckboxOption
-              label="Ignore empty values"
-              description={settings.sankeyType === "dropoff"
-                ? "Always on in drop-off mode"
-                : "Skip rows where any stage field is null or empty"}
-              checked={settings.sankeyType === "dropoff" ? true : settings.ignoreNulls}
-              disabled={settings.sankeyType === "dropoff"}
-              onChange={(v) => {
-                if (settings.sankeyType !== "dropoff") onSettingChange("ignoreNulls", v);
-              }}
+              label="Show flow values"
+              description="Values along flow paths (only on wide flows)"
+              checked={settings.showFlowLabels}
+              onChange={(v) => onSettingChange("showFlowLabels", v)}
             />
           </AccordionSection>
 
@@ -788,7 +744,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               checked={settings.showTableauTooltip}
               onChange={(v) => onSettingChange("showTableauTooltip", v)}
             />
-            {settings.showPercentages && (
+            {settings.showPercentages && !settings.showTableauTooltip && (
               <RadioGroup
                 label="Tooltip Style"
                 name="tooltipMode"
@@ -811,6 +767,50 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               />
             )}
           </AccordionSection>
+
+          {/* Fonts */}
+          {anyLabelShown && (
+            <AccordionSection title="Fonts" isOpen={openSections.has("fonts")} onToggle={() => toggleSection("fonts")}>
+              <CheckboxOption
+                label="Override Tableau font"
+                description="Set custom size and weight per label type"
+                checked={settings.useCustomLabelFont}
+                onChange={(v) => onSettingChange("useCustomLabelFont", v)}
+              />
+              {settings.useCustomLabelFont && (
+                <div style={{ marginLeft: 20 }}>
+                  {settings.showLabels && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div className="cp-radio-group-label">Node names</div>
+                      <SliderOption label="Font size" description="" value={settings.labelFontSize} min={8} max={24} onChange={(v) => onSettingChange("labelFontSize", v)} />
+                      <CheckboxOption label="Bold" description="" checked={settings.labelFontWeight === "bold"} onChange={(v) => onSettingChange("labelFontWeight", v ? "bold" : "normal")} />
+                    </div>
+                  )}
+                  {settings.showValues && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div className="cp-radio-group-label">Node values</div>
+                      <SliderOption label="Font size" description="" value={settings.valueLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("valueLabelFontSize", v)} />
+                      <CheckboxOption label="Bold" description="" checked={settings.valueLabelFontWeight === "bold"} onChange={(v) => onSettingChange("valueLabelFontWeight", v ? "bold" : "normal")} />
+                    </div>
+                  )}
+                  {settings.showFlowLabels && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div className="cp-radio-group-label">Flow values</div>
+                      <SliderOption label="Font size" description="" value={settings.flowLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("flowLabelFontSize", v)} />
+                      <CheckboxOption label="Bold" description="" checked={settings.flowLabelFontWeight === "bold"} onChange={(v) => onSettingChange("flowLabelFontWeight", v ? "bold" : "normal")} />
+                    </div>
+                  )}
+                  {settings.showStageLabels && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div className="cp-radio-group-label">Stage names</div>
+                      <SliderOption label="Font size" description="" value={settings.stageLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("stageLabelFontSize", v)} />
+                      <CheckboxOption label="Bold" description="" checked={settings.stageLabelFontWeight === "bold"} onChange={(v) => onSettingChange("stageLabelFontWeight", v ? "bold" : "normal")} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </AccordionSection>
+          )}
         </div>
       </div>
     </>

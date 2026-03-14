@@ -1,4 +1,6 @@
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import { drag } from "d3-drag";
+import type { D3DragEvent } from "d3-drag";
 import {
   sankey,
   sankeyLinkHorizontal,
@@ -311,9 +313,9 @@ export async function Sankey(
     };
 
     nodeRects.call(
-      d3.drag<SVGRectElement, SankeyNode>()
-        .on("start", function (_event: d3.D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
-          d3.select(this).raise().attr("stroke-width", 2);
+      drag<SVGRectElement, SankeyNode>()
+        .on("start", function (_event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+          select(this).raise().attr("stroke-width", 2);
 
           // Snapshot the layer's node order, heights, and compute uniform gap
           dragOrder = allNodes
@@ -333,7 +335,7 @@ export async function Sankey(
           const layerSpan = (lastNode.y1 || 0) - layerTopY;
           layerGap = dragOrder.length > 1 ? (layerSpan - totalNodeHeight) / (dragOrder.length - 1) : 0;
         })
-        .on("drag", function (event: d3.D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+        .on("drag", function (event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
           // Move dragged node visually (free Y, constrained to chart bounds)
           const dragH = nodeHeights.get(d.id) || ((d.y1 || 0) - (d.y0 || 0));
           const oldY0 = d.y0 || 0;
@@ -341,7 +343,7 @@ export async function Sankey(
           d.y0 = newY0;
           d.y1 = newY0 + dragH;
           shiftNodeLinks(d, newY0 - oldY0);
-          d3.select(this).attr("y", d.y0);
+          select(this).attr("y", d.y0);
 
           // Update dragged node's label
           svg.selectAll<SVGTextElement, SankeyNode>(".node-label")
@@ -399,8 +401,8 @@ export async function Sankey(
               .attr("y", (ld: SankeyLink) => ((ld.y0 || 0) + (ld.y1 || 0)) / 2);
           }
         })
-        .on("end", function (_event: d3.D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
-          d3.select(this).attr("stroke-width", NODE_BORDER_WIDTH);
+        .on("end", function (_event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+          select(this).attr("stroke-width", NODE_BORDER_WIDTH);
 
           // Snap dragged node to its computed position in the order
           recomputeLayerPositions(""); // recompute all including dragged
@@ -543,7 +545,7 @@ export async function Sankey(
         if (!settings.showValues || nodeHeight < MIN_NODE_HEIGHT_FOR_VALUE) return;
 
         const nodeValue = d.value || 0;
-        d3.select(this)
+        select(this)
           .append("tspan")
           .attr(
             "x",
@@ -737,7 +739,7 @@ export function resolveLabelsPostRender(
   nodes: SankeyNode[]
 ): Set<number> {
   const hiddenNodeIndices = new Set<number>();
-  const svg = d3.select(svgElement);
+  const svg = select(svgElement);
   const labelElements = svg.selectAll<SVGTextElement, SankeyNode>(".node-label");
 
   if (labelElements.empty()) return hiddenNodeIndices;
@@ -1051,7 +1053,7 @@ export function getEncodedData(
 
     // Parse per-node drop-off color overrides
     let dropoffOverrides: Record<string, string> = {};
-    if (effectiveSettings.dropoffColorMode === "perNode") {
+    if (effectiveSettings.enableDropoffColorOverrides) {
       try {
         const parsed: unknown = JSON.parse(effectiveSettings.dropoffNodeColors);
         if (parsed && typeof parsed === "object") dropoffOverrides = parsed as Record<string, string>;

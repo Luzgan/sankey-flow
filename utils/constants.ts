@@ -82,7 +82,8 @@ export interface ExtensionSettings {
   nodeColorOverrides: string;
   stagePalettes: string;
   sankeyType: "standard" | "dropoff";
-  dropoffColorMode: "default" | "perNode";
+  dropoffColorMode: "default" | "perStage";
+  enableDropoffColorOverrides: boolean;
   dropoffNodeColors: string;
   flowOpacity: number;
   flowGap: number;
@@ -119,13 +120,14 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   labelVerticalAlign: "middle",
   showFlowLabels: false,
   onboardingSeen: false,
-  enableDrag: false,
+  enableDrag: true,
   nodePositions: "{}",
-  enableNodeColorOverrides: false,
+  enableNodeColorOverrides: true,
   nodeColorOverrides: "{}",
   stagePalettes: "{}",
   sankeyType: "standard",
   dropoffColorMode: "default",
+  enableDropoffColorOverrides: true,
   dropoffNodeColors: "{}",
   flowOpacity: 0.5,
   flowGap: 0,

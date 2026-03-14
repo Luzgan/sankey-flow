@@ -267,8 +267,8 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
         if (element?.classList?.contains("node")) {
           e.preventDefault();
           e.stopPropagation();
-          const d3 = await import("d3");
-          const nodeData = d3.select(element).datum() as { id: string; name: string; color: string };
+          const { select } = await import("d3-selection");
+          const nodeData = select(element).datum() as { id: string; name: string; color: string };
           if (nodeData?.name && colorPickerRef.current) {
             colorPickerNodeRef.current = nodeData.name;
             colorPickerIsDropoffRef.current = nodeData.id?.startsWith("dropoff-") ?? false;

@@ -1,4 +1,4 @@
-import * as d3 from "d3";
+import { select } from "d3-selection";
 import { SankeyLink, SankeyNode } from "./sankey-utils";
 import {
   selectTuples,
@@ -20,7 +20,7 @@ export function getFlowsPerTupleId(links: any): Map<number, any[]> {
 
   links.each(function (this: any, d: SankeyLink) {
     const ids = d.tupleIds || [d.tupleId];
-    const selection = d3.select(this);
+    const selection = select(this);
 
     for (const id of ids) {
       let list = flowsPerTupleId.get(id);
@@ -333,7 +333,7 @@ export function onClick(
     return;
   }
 
-  const elem = d3.select(element);
+  const elem = select(element);
   const isNode = element.classList?.contains("node");
   const isFlow = element.classList?.contains("flow");
 
@@ -410,7 +410,7 @@ export async function onMouseMove(
   clearHoveredMarks(hoveredTupleIds);
 
   if (isNode && element) {
-    const elem = d3.select(element);
+    const elem = select(element);
     const nodeData = elem.datum() as SankeyNode;
 
     // Highlight only directly connected flows (incoming + outgoing)
@@ -430,13 +430,13 @@ export async function onMouseMove(
       if (sourceId) {
         const svgContainer = elem.node()?.closest("svg");
         if (svgContainer) {
-          d3.select(svgContainer)
+          select(svgContainer)
             .selectAll<SVGPathElement, SankeyLink>(".flow")
             .each(function (d: SankeyLink) {
               const targetId =
                 typeof d.target === "string" ? d.target : d.target.id;
               if (targetId === sourceId) {
-                extraHoverFlows.push(d3.select(this));
+                extraHoverFlows.push(select(this));
               }
             });
         }
@@ -475,7 +475,7 @@ export async function onMouseMove(
       getWorksheet().hoverTupleAsync(firstId, tooltipCtx);
     }
   } else if (isFlow && element) {
-    const elem = d3.select(element);
+    const elem = select(element);
     const data = elem.datum() as SankeyLink;
     const ids = data.tupleIds || [data.tupleId];
 
