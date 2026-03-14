@@ -70,8 +70,8 @@ const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
 ];
 
 const SANKEY_TYPE_OPTIONS: RadioOption[] = [
-  { value: "standard", label: "Standard", description: "Multi-stage left-to-right flow diagram" },
-  { value: "dropoff", label: "Drop-off", description: "Show lost value as drop-off nodes at each stage" },
+  { value: "standard", label: "Standard", description: "Classic multi-stage flow diagram showing how values split, merge, and move between stages from left to right." },
+  { value: "dropoff", label: "Drop-off", description: "Highlights value lost between stages. A drop-off node appears at each transition where the outgoing total is less than the incoming total. Requires at least 2 Stage dimensions and a Value measure to calculate differences." },
 ];
 
 const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
