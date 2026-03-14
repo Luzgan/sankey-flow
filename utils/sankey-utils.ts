@@ -1032,6 +1032,23 @@ export function getEncodedData(
       nodeIncoming.set(targetId, (nodeIncoming.get(targetId) || 0) + link.value);
     }
 
+    // For stage 0 nodes, compute total expected value from raw data.
+    // Rows with null targets at stage 1 don't create flows, so outgoing
+    // alone understates the true value that enters the diagram at stage 0.
+    const stage0Expected = new Map<string, number>();
+    if (encodingMap.edge && encodingMap.level.length >= 1) {
+      const stage0Field = encodingMap.level[0];
+      const edgeField = encodingMap.edge[0];
+      for (const row of data) {
+        const rawValue = row[stage0Field.name]?.value?.toString() ?? "";
+        if (isNullValue(rawValue)) continue;
+        const edgeValue = getLinkValue(row, edgeField);
+        if (edgeValue <= 0) continue;
+        const nodeId = `0-${rawValue}`;
+        stage0Expected.set(nodeId, (stage0Expected.get(nodeId) || 0) + edgeValue);
+      }
+    }
+
     // Parse per-node drop-off color overrides
     let dropoffOverrides: Record<string, string> = {};
     if (effectiveSettings.dropoffColorMode === "perNode") {
@@ -1044,9 +1061,12 @@ export function getEncodedData(
     const maxStage = encodingMap.level.length - 1;
     for (const node of nodes) {
       if (node.layer >= maxStage) continue;
-      const incoming = nodeIncoming.get(node.id) || 0;
       const outgoing = nodeOutgoing.get(node.id) || 0;
-      const total = node.layer === 0 ? outgoing : incoming;
+      // Stage 0: compare expected value from data vs actual outgoing flows
+      // Other stages: compare incoming flows vs outgoing flows
+      const total = node.layer === 0
+        ? (stage0Expected.get(node.id) || 0)
+        : (nodeIncoming.get(node.id) || 0);
       const lost = total - outgoing;
 
       if (lost > 0) {
