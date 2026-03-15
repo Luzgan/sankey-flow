@@ -56,6 +56,37 @@ export const BOTTOM_MARGIN = 30;
 export const EXPORT_BUTTON_SIZE = 28;
 export const EXPORT_BUTTON_MARGIN = 8;
 
+// Fonts available in Tableau Desktop
+export const TABLEAU_FONTS = [
+  "",
+  "Arial",
+  "Arial Black",
+  "Book Antiqua",
+  "Calibri",
+  "Cambria",
+  "Century Gothic",
+  "Comic Sans MS",
+  "Consolas",
+  "Courier New",
+  "Franklin Gothic Medium",
+  "Garamond",
+  "Georgia",
+  "Impact",
+  "Lucida Console",
+  "Lucida Grande",
+  "Lucida Sans Unicode",
+  "Palatino Linotype",
+  "Segoe UI",
+  "Tahoma",
+  "Times New Roman",
+  "Trebuchet MS",
+  "Verdana",
+] as const;
+
+// Margin slider ranges
+export const MARGIN_MIN = 0;
+export const MARGIN_MAX = 100;
+
 export interface ExtensionSettings {
   colorScheme: "default" | "colorblind" | "monochrome" | "custom" | "perStage";
   flowStyle: "gradient" | "source" | "target";
@@ -98,6 +129,14 @@ export interface ExtensionSettings {
   valueLabelFontWeight: "normal" | "bold";
   stageLabelFontSize: number;
   stageLabelFontWeight: "normal" | "bold";
+  labelFontFamily: string;
+  valueLabelFontFamily: string;
+  flowLabelFontFamily: string;
+  stageLabelFontFamily: string;
+  marginTop: number;
+  marginBottom: number;
+  marginLeft: number;
+  marginRight: number;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -142,4 +181,12 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   valueLabelFontWeight: "normal",
   stageLabelFontSize: 14,
   stageLabelFontWeight: "bold",
+  labelFontFamily: "",
+  valueLabelFontFamily: "",
+  flowLabelFontFamily: "",
+  stageLabelFontFamily: "",
+  marginTop: TOP_MARGIN,
+  marginBottom: BOTTOM_MARGIN,
+  marginLeft: 0,
+  marginRight: 0,
 };
