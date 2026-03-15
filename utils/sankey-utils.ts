@@ -1,4 +1,4 @@
-import { select } from "d3-selection";
+import { select, create } from "d3-selection";
 import { drag } from "d3-drag";
 import type { D3DragEvent } from "d3-drag";
 import {
@@ -175,8 +175,7 @@ export async function Sankey(
   const selectedNodeIndexes = getSelectedNodes(layout.links, selectedTupleIds);
 
   // Create SVG container
-  const svg = d3
-    .create("svg")
+  const svg = create("svg")
     .attr("class", tableau.ClassNameKey.Worksheet)
     .attr("width", width)
     .attr("height", height)
@@ -541,8 +540,9 @@ export async function Sankey(
           truncateLabel(this, d.name, maxLabelWidth);
         }
 
+        if (!settings.showValues) return;
         const nodeHeight = (d.y1 || 0) - (d.y0 || 0);
-        if (!settings.showValues || nodeHeight < MIN_NODE_HEIGHT_FOR_VALUE) return;
+        if (nodeHeight < MIN_NODE_HEIGHT_FOR_VALUE) return;
 
         const nodeValue = d.value || 0;
         select(this)
@@ -563,6 +563,33 @@ export async function Sankey(
           .attr("fill-opacity", 0.7)
           .text(nodeValue.toLocaleString());
       });
+  }
+
+  // Render standalone value labels when node names are hidden
+  if (!settings.showLabels && settings.showValues) {
+    svg
+      .append("g")
+      .selectAll()
+      .data(layout.nodes.filter((d: SankeyNode) =>
+        ((d.y1 || 0) - (d.y0 || 0)) >= MIN_NODE_HEIGHT_FOR_VALUE
+      ))
+      .join("text")
+      .attr("class", "node-label")
+      .attr("x", (d: SankeyNode) => ((d.x1 || 0) + (d.x0 || 0)) / 2)
+      .attr("y", (d: SankeyNode) => ((d.y1 || 0) + (d.y0 || 0)) / 2)
+      .attr("dy", "0.35em")
+      .attr("text-anchor", "middle")
+      .call((sel) => {
+        if (settings.useCustomLabelFont) {
+          sel.style("font-size", `${settings.valueLabelFontSize}px`)
+            .style("font-weight", settings.valueLabelFontWeight);
+        } else {
+          sel.style("font-size", "0.85em");
+        }
+      })
+      .attr("fill-opacity", 0.7)
+      .attr("fill", (d: SankeyNode) => getContrastingLabelColor(d.color))
+      .text((d: SankeyNode) => (d.value || 0).toLocaleString());
   }
 
   // Add top labels for stages
@@ -1160,6 +1187,81 @@ function aggregateFlows(links: SankeyLink[]): SankeyLink[] {
 }
 
 /**
+ * Extract the layout layer from a node ID.
+ * Regular nodes: "{layer}-{name}" → layer
+ * Drop-off nodes: "dropoff-{sourceLayer}-{nodeId}" → sourceLayer + 1
+ */
+function getNodeLayerFromId(id: string): number {
+  if (id.startsWith("dropoff-")) {
+    const rest = id.substring("dropoff-".length);
+    const dashIndex = rest.indexOf("-");
+    if (dashIndex > 0) {
+      const sourceLayer = parseInt(rest.substring(0, dashIndex), 10);
+      if (!isNaN(sourceLayer)) return sourceLayer + 1;
+    }
+    return -1;
+  }
+  const dashIndex = id.indexOf("-");
+  if (dashIndex <= 0) return -1;
+  const layer = parseInt(id.substring(0, dashIndex), 10);
+  return isNaN(layer) ? -1 : layer;
+}
+
+/**
+ * Measure the widest outside label for the first and last columns.
+ * Uses a temporary SVG text element for accurate pixel measurement.
+ */
+function measureLabelMargins(
+  nodes: SankeyNode[],
+  settings: ExtensionSettings
+): { left: number; right: number } {
+  // Determine max layer from all nodes (including drop-offs)
+  let maxLayer = 0;
+  for (const node of nodes) {
+    const layer = getNodeLayerFromId(node.id);
+    if (layer > maxLayer) maxLayer = layer;
+  }
+
+  // Separate first/last layer node names
+  const leftNames: string[] = [];
+  const rightNames: string[] = [];
+  for (const node of nodes) {
+    const layer = getNodeLayerFromId(node.id);
+    if (layer < 0) continue;
+    if (layer === 0) leftNames.push(node.name);
+    if (layer === maxLayer) rightNames.push(node.name);
+  }
+
+  // Measure text widths with a temporary off-screen SVG
+  const measureSvg = create("svg")
+    .attr("style", "position:absolute;visibility:hidden;pointer-events:none");
+  document.body.appendChild(measureSvg.node()!);
+
+  const textEl = measureSvg.append("text");
+  if (settings.useCustomLabelFont) {
+    textEl.attr("font-size", `${settings.labelFontSize}px`)
+      .attr("font-weight", settings.labelFontWeight);
+  }
+
+  const measure = (names: string[]): number => {
+    let widest = 0;
+    for (const name of names) {
+      textEl.text(name);
+      const bbox = (textEl.node() as SVGTextElement).getBBox();
+      if (bbox.width > widest) widest = bbox.width;
+    }
+    return widest;
+  };
+
+  const leftWidth = measure(leftNames) + LABEL_PADDING * 2;
+  const rightWidth = measure(rightNames) + LABEL_PADDING * 2;
+
+  measureSvg.node()!.remove();
+
+  return { left: leftWidth, right: rightWidth };
+}
+
+/**
  * Compute Sankey layout with alignment and sort settings
  */
 export function computeSankeyLayout(
@@ -1178,13 +1280,16 @@ export function computeSankeyLayout(
     NODE_ALIGNMENT_MAP[settings.nodeAlignment] || sankeyJustify;
 
   // Reserve horizontal space for outside labels on first/last columns
-  const hasOutsideLabels = settings.labelPosition !== "inside";
-  const labelMargin = Math.min(
-    LABEL_MARGIN_MAX,
-    Math.max(LABEL_MARGIN_MIN, Math.round(width * LABEL_MARGIN_RATIO))
-  );
-  const xStart = hasOutsideLabels ? labelMargin : 1;
-  const xEnd = hasOutsideLabels ? width - labelMargin : width - 1;
+  const hasOutsideLabels = settings.showLabels && settings.labelPosition !== "inside";
+
+  let xStart = 1;
+  let xEnd = width - 1;
+
+  if (hasOutsideLabels) {
+    const { left, right } = measureLabelMargins(nodes, settings);
+    xStart = Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, left));
+    xEnd = width - Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, right));
+  }
 
   const sankeyGenerator = d3Sankey()
     .nodeWidth(nodeWidth)
@@ -1218,6 +1323,76 @@ export function computeSankeyLayout(
 
   const layout = sankeyGenerator({ nodes, links });
 
+  // Apply vertical distribution — d3-sankey doesn't truly stretch-to-fill
+  // when layers have different node counts, so we reposition manually.
+  {
+    const extentTop = top;
+    const extentBottom = height - BOTTOM_MARGIN;
+    const extentHeight = extentBottom - extentTop;
+
+    // Group nodes by layer
+    const layerMap = new Map<number, SankeyNode[]>();
+    for (const node of layout.nodes) {
+      const arr = layerMap.get(node.layer) || [];
+      arr.push(node);
+      layerMap.set(node.layer, arr);
+    }
+
+    // Build a sort comparator matching the nodeSort setting
+    const getSortComparator = (): ((a: SankeyNode, b: SankeyNode) => number) => {
+      if (settings.nodeSort === "ascending") {
+        return (a, b) => (a.value || 0) - (b.value || 0);
+      } else if (settings.nodeSort === "descending") {
+        return (a, b) => (b.value || 0) - (a.value || 0);
+      } else if (settings.nodeSort === "alphabetical") {
+        return (a, b) => (a.name || "").localeCompare(b.name || "");
+      }
+      // "auto" — preserve d3-sankey's computed y-order
+      return (a, b) => (a.y0 || 0) - (b.y0 || 0);
+    };
+    const sortComparator = getSortComparator();
+
+    for (const [layer, layerNodes] of layerMap.entries()) {
+      const sorted = [...layerNodes].sort(sortComparator);
+      const totalNodeHeight = sorted.reduce(
+        (sum, n) => sum + ((n.y1 || 0) - (n.y0 || 0)), 0
+      );
+      const totalWithPadding = totalNodeHeight + padding * (sorted.length - 1);
+      const slack = extentHeight - totalWithPadding;
+
+      let startY: number;
+      let gap: number;
+
+      if (settings.nodeAlignment === "justify") {
+        // Distribute slack evenly between nodes so all layers fill the same height
+        startY = extentTop;
+        gap = sorted.length > 1
+          ? (extentHeight - totalNodeHeight) / (sorted.length - 1)
+          : padding;
+      } else if (settings.nodeAlignment === "left") {
+        startY = extentTop;
+        gap = padding;
+      } else if (settings.nodeAlignment === "right") {
+        startY = extentTop + slack;
+        gap = padding;
+      } else {
+        // center
+        startY = extentTop + slack / 2;
+        gap = padding;
+      }
+
+      let y = startY;
+      for (const node of sorted) {
+        const h = (node.y1 || 0) - (node.y0 || 0);
+        node.y0 = y;
+        node.y1 = y + h;
+        y += h + gap;
+      }
+    }
+
+    sankeyGenerator.update(layout);
+  }
+
   // Restore saved node order overrides from drag
   let savedOrder: Record<string, string[]> = {};
   try {
@@ -1225,7 +1400,7 @@ export function computeSankeyLayout(
     if (parsed && typeof parsed === "object") savedOrder = parsed as Record<string, string[]>;
   } catch { /* fallback */ }
 
-  if (Object.keys(savedOrder).length > 0) {
+  if (Object.keys(savedOrder).length > 0 && settings.nodeSort === "auto") {
     // Group nodes by layer
     const nodesByLayer = new Map<number, SankeyNode[]>();
     for (const node of layout.nodes) {
