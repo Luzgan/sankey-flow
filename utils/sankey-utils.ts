@@ -155,7 +155,7 @@ export async function Sankey(
   const layout = computeSankeyLayout(
     sankey,
     encodedData,
-    TOP_MARGIN,
+    TOP_MARGIN + settings.marginTop,
     width,
     height,
     settings.nodeWidth,
@@ -338,7 +338,7 @@ export async function Sankey(
           // Move dragged node visually (free Y, constrained to chart bounds)
           const dragH = nodeHeights.get(d.id) || ((d.y1 || 0) - (d.y0 || 0));
           const oldY0 = d.y0 || 0;
-          const newY0 = Math.max(TOP_MARGIN, Math.min(height - BOTTOM_MARGIN - dragH, oldY0 + event.dy));
+          const newY0 = Math.max(TOP_MARGIN + settings.marginTop, Math.min(height - BOTTOM_MARGIN - settings.marginBottom - dragH, oldY0 + event.dy));
           d.y0 = newY0;
           d.y1 = newY0 + dragH;
           shiftNodeLinks(d, newY0 - oldY0);
@@ -471,6 +471,7 @@ export async function Sankey(
         if (settings.useCustomLabelFont) {
           sel.style("font-size", `${settings.flowLabelFontSize}px`)
             .style("font-weight", settings.flowLabelFontWeight);
+          if (settings.flowLabelFontFamily) sel.style("font-family", settings.flowLabelFontFamily);
         } else {
           sel.style("font-size", "0.85em");
         }
@@ -514,6 +515,7 @@ export async function Sankey(
         if (settings.useCustomLabelFont) {
           sel.attr("font-size", `${settings.labelFontSize}px`)
             .attr("font-weight", settings.labelFontWeight);
+          if (settings.labelFontFamily) sel.attr("font-family", settings.labelFontFamily);
         }
       })
       .text((d: SankeyNode) => d.name)
@@ -556,6 +558,7 @@ export async function Sankey(
             if (settings.useCustomLabelFont) {
               tspan.style("font-size", `${settings.valueLabelFontSize}px`)
                 .style("font-weight", settings.valueLabelFontWeight);
+              if (settings.valueLabelFontFamily) tspan.style("font-family", settings.valueLabelFontFamily);
             } else {
               tspan.style("font-size", "0.85em");
             }
@@ -583,6 +586,7 @@ export async function Sankey(
         if (settings.useCustomLabelFont) {
           sel.style("font-size", `${settings.valueLabelFontSize}px`)
             .style("font-weight", settings.valueLabelFontWeight);
+          if (settings.valueLabelFontFamily) sel.style("font-family", settings.valueLabelFontFamily);
         } else {
           sel.style("font-size", "0.85em");
         }
@@ -608,12 +612,13 @@ export async function Sankey(
       .attr("x", (d: SankeyNode | undefined) =>
         d ? ((d.x1 || 0) + (d.x0 || 0)) / 2 : 0
       )
-      .attr("y", TOP_MARGIN / 2)
+      .attr("y", (TOP_MARGIN + settings.marginTop) / 2)
       .attr("text-anchor", "middle")
       .call((sel) => {
         if (settings.useCustomLabelFont) {
           sel.style("font-size", `${settings.stageLabelFontSize}px`)
             .style("font-weight", settings.stageLabelFontWeight);
+          if (settings.stageLabelFontFamily) sel.style("font-family", settings.stageLabelFontFamily);
         }
       })
       .text((d: SankeyNode | undefined) =>
@@ -1241,6 +1246,7 @@ function measureLabelMargins(
   if (settings.useCustomLabelFont) {
     textEl.attr("font-size", `${settings.labelFontSize}px`)
       .attr("font-weight", settings.labelFontWeight);
+    if (settings.labelFontFamily) textEl.attr("font-family", settings.labelFontFamily);
   }
 
   const measure = (names: string[]): number => {
@@ -1282,13 +1288,13 @@ export function computeSankeyLayout(
   // Reserve horizontal space for outside labels on first/last columns
   const hasOutsideLabels = settings.showLabels && settings.labelPosition !== "inside";
 
-  let xStart = 1;
-  let xEnd = width - 1;
+  let xStart = 1 + settings.marginLeft;
+  let xEnd = width - 1 - settings.marginRight;
 
   if (hasOutsideLabels) {
     const { left, right } = measureLabelMargins(nodes, settings);
-    xStart = Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, left));
-    xEnd = width - Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, right));
+    xStart = Math.max(xStart, Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, left)) + settings.marginLeft);
+    xEnd = Math.min(xEnd, width - Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, right)) - settings.marginRight);
   }
 
   const sankeyGenerator = d3Sankey()
@@ -1298,7 +1304,7 @@ export function computeSankeyLayout(
     .nodeId((d: SankeyNode) => d.id)
     .extent([
       [xStart, top],
-      [xEnd, height - BOTTOM_MARGIN],
+      [xEnd, height - BOTTOM_MARGIN - settings.marginBottom],
     ]);
 
   // Apply node sort — all options use deterministic comparators
@@ -1327,7 +1333,7 @@ export function computeSankeyLayout(
   // when layers have different node counts, so we reposition manually.
   {
     const extentTop = top;
-    const extentBottom = height - BOTTOM_MARGIN;
+    const extentBottom = height - BOTTOM_MARGIN - settings.marginBottom;
     const extentHeight = extentBottom - extentTop;
 
     // Group nodes by layer

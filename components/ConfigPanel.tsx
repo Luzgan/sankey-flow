@@ -5,6 +5,9 @@ import {
   NODE_PADDING_MAX,
   NODE_WIDTH_MIN,
   NODE_WIDTH_MAX,
+  TABLEAU_FONTS,
+  MARGIN_MIN,
+  MARGIN_MAX,
 } from "../utils/constants";
 
 // ---------------------------------------------------------------------------
@@ -173,6 +176,35 @@ const SliderOption: React.FC<{
     {description && <div className="cp-help-text">{description}</div>}
   </div>
 );
+
+const SelectOption: React.FC<{
+  label: string;
+  description: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}> = ({ label, description, value, options, onChange }) => (
+  <div className="cp-form-group cp-slider-group">
+    <div className="cp-slider-header">
+      <span className="cp-slider-label">{label}</span>
+    </div>
+    <select
+      className="cp-select-input"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+    {description && <div className="cp-help-text">{description}</div>}
+  </div>
+);
+
+const FONT_OPTIONS = TABLEAU_FONTS.map((f) => ({
+  value: f,
+  label: f || "(Inherit from Tableau)",
+}));
 
 // ---------------------------------------------------------------------------
 // Complex editors
@@ -782,6 +814,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   {settings.showLabels && (
                     <div style={{ marginBottom: 12 }}>
                       <div className="cp-radio-group-label">Node names</div>
+                      <SelectOption label="Font" description="" value={settings.labelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("labelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.labelFontSize} min={8} max={24} onChange={(v) => onSettingChange("labelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.labelFontWeight === "bold"} onChange={(v) => onSettingChange("labelFontWeight", v ? "bold" : "normal")} />
                     </div>
@@ -789,6 +822,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   {settings.showValues && (
                     <div style={{ marginBottom: 12 }}>
                       <div className="cp-radio-group-label">Node values</div>
+                      <SelectOption label="Font" description="" value={settings.valueLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("valueLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.valueLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("valueLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.valueLabelFontWeight === "bold"} onChange={(v) => onSettingChange("valueLabelFontWeight", v ? "bold" : "normal")} />
                     </div>
@@ -796,6 +830,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   {settings.showFlowLabels && (
                     <div style={{ marginBottom: 12 }}>
                       <div className="cp-radio-group-label">Flow values</div>
+                      <SelectOption label="Font" description="" value={settings.flowLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("flowLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.flowLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("flowLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.flowLabelFontWeight === "bold"} onChange={(v) => onSettingChange("flowLabelFontWeight", v ? "bold" : "normal")} />
                     </div>
@@ -803,6 +838,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   {settings.showStageLabels && (
                     <div style={{ marginBottom: 12 }}>
                       <div className="cp-radio-group-label">Stage names</div>
+                      <SelectOption label="Font" description="" value={settings.stageLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("stageLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.stageLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("stageLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.stageLabelFontWeight === "bold"} onChange={(v) => onSettingChange("stageLabelFontWeight", v ? "bold" : "normal")} />
                     </div>
@@ -811,6 +847,42 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               )}
             </AccordionSection>
           )}
+
+          {/* Margins */}
+          <AccordionSection title="Margins" isOpen={openSections.has("margins")} onToggle={() => toggleSection("margins")}>
+            <SliderOption
+              label="Top"
+              description=""
+              value={settings.marginTop}
+              min={MARGIN_MIN}
+              max={MARGIN_MAX}
+              onChange={(v) => onSettingChange("marginTop", v)}
+            />
+            <SliderOption
+              label="Bottom"
+              description=""
+              value={settings.marginBottom}
+              min={MARGIN_MIN}
+              max={MARGIN_MAX}
+              onChange={(v) => onSettingChange("marginBottom", v)}
+            />
+            <SliderOption
+              label="Left"
+              description=""
+              value={settings.marginLeft}
+              min={MARGIN_MIN}
+              max={MARGIN_MAX}
+              onChange={(v) => onSettingChange("marginLeft", v)}
+            />
+            <SliderOption
+              label="Right"
+              description=""
+              value={settings.marginRight}
+              min={MARGIN_MIN}
+              max={MARGIN_MAX}
+              onChange={(v) => onSettingChange("marginRight", v)}
+            />
+          </AccordionSection>
         </div>
       </div>
     </>
