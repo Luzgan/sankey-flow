@@ -18,4 +18,5 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/sankey-flow
+            git pull origin main
             bash deploy/deploy.sh
