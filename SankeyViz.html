@@ -117,7 +117,7 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.4);
+        background: #ffffff;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -130,13 +130,51 @@
         to { opacity: 1; }
       }
 
+      @keyframes slideUpOut {
+        from { opacity: 1; transform: translateY(0) scale(1); }
+        to { opacity: 0; transform: translateY(-40px) scale(0.95); }
+      }
+
+      @keyframes popIn {
+        0% { opacity: 0; transform: scale(0.5); }
+        60% { transform: scale(1.15); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes checkPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.4); }
+        100% { transform: scale(1.2); }
+      }
+
+      .onboarding-overlay--complete {
+        animation: fadeIn 0.5s ease reverse forwards;
+        animation-delay: 0.9s;
+      }
+
+      .onboarding-card--complete {
+        animation: slideUpOut 0.8s ease forwards;
+        animation-delay: 0.6s;
+      }
+
+      .onboarding-card--complete .onboarding-dot--pass {
+        animation: checkPulse 0.4s ease;
+      }
+
       .onboarding-card {
         background: white;
         border-radius: 12px;
         padding: 32px 36px;
         max-width: 420px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+        box-shadow: none;
         text-align: center;
+      }
+
+      .onboarding-mascot {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 16px;
+        image-rendering: pixelated;
       }
 
       .onboarding-title {
@@ -172,6 +210,33 @@
         font-size: 14px;
       }
 
+      .onboarding-dots {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .onboarding-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #dc3545;
+        transition: background 0.4s ease, transform 0.3s ease;
+      }
+
+      .onboarding-dot--pass {
+        background: #28a745;
+        transform: scale(1.2);
+      }
+
+      .onboarding-ready {
+        margin-top: 20px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #28a745;
+        animation: popIn 0.5s ease;
+      }
+
       .onboarding-step strong {
         display: block;
         font-size: 14px;
@@ -185,20 +250,189 @@
         line-height: 1.4;
       }
 
-      .onboarding-dismiss {
-        background: #4e79a7;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 10px 28px;
-        font-size: 14px;
-        font-weight: 500;
+
+      /* Viewer mode toggle */
+      .viewer-toggle {
+        position: fixed;
+        bottom: 16px;
+        left: 16px;
+        z-index: 1500;
+        display: flex;
+        align-items: center;
+        gap: 0;
+        width: 36px;
+        height: 36px;
+        border: 1px solid #ccc;
+        border-radius: 18px;
+        background: white;
+        color: #555;
         cursor: pointer;
-        transition: background 0.2s;
+        padding: 0 10px;
+        overflow: hidden;
+        white-space: nowrap;
+        transition: width 0.3s ease, background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       }
 
-      .onboarding-dismiss:hover {
-        background: #3d6a96;
+      .viewer-toggle:hover {
+        width: 160px;
+        gap: 8px;
+      }
+
+      .viewer-toggle--active {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+      }
+
+      .viewer-toggle--active:hover {
+        width: 170px;
+        background: #218838;
+        border-color: #218838;
+      }
+
+      .viewer-toggle svg {
+        flex-shrink: 0;
+      }
+
+      .viewer-toggle-label {
+        opacity: 0;
+        font-size: 13px;
+        font-weight: 500;
+        transition: opacity 0.2s ease 0.1s;
+        pointer-events: none;
+      }
+
+      .viewer-toggle:hover .viewer-toggle-label {
+        opacity: 1;
+      }
+
+      /* About panel */
+      .about-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 3000;
+        animation: fadeIn 0.2s ease;
+      }
+
+      .about-panel {
+        background: white;
+        border-radius: 12px;
+        padding: 32px 36px;
+        max-width: 360px;
+        text-align: center;
+        position: relative;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .about-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #999;
+        padding: 4px;
+      }
+
+      .about-close:hover {
+        color: #333;
+      }
+
+      .about-mascot {
+        width: 80px;
+        height: 80px;
+        image-rendering: pixelated;
+        margin-bottom: 12px;
+      }
+
+      .about-title {
+        margin: 0 0 4px;
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .about-author {
+        margin: 0 0 16px;
+        font-size: 14px;
+        color: #666;
+      }
+
+      .about-author a {
+        color: #4e79a7;
+        text-decoration: none;
+      }
+
+      .about-author a:hover {
+        text-decoration: underline;
+      }
+
+      .about-description {
+        margin: 0 0 20px;
+        font-size: 13px;
+        color: #555;
+        line-height: 1.5;
+      }
+
+      .about-link {
+        display: inline-block;
+        font-size: 13px;
+        color: #4e79a7;
+        text-decoration: none;
+      }
+
+      .about-link:hover {
+        text-decoration: underline;
+      }
+
+      .about-changelog {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #eee;
+        text-align: left;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      .about-changelog-title {
+        margin: 0 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .about-changelog-entry {
+        margin-bottom: 12px;
+      }
+
+      .about-changelog-version {
+        font-size: 13px;
+        font-weight: 600;
+        color: #4e79a7;
+        margin-right: 8px;
+      }
+
+      .about-changelog-date {
+        font-size: 12px;
+        color: #999;
+      }
+
+      .about-changelog-entry p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #666;
+        line-height: 1.5;
       }
 
       /* Toolbar (config + export buttons) */

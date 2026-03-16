@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ErrorState } from "./ErrorState";
 import { WarningBanner } from "./WarningBanner";
 import { LoadingState } from "./LoadingState";
 import { SankeyChart } from "./SankeyChart";
@@ -49,6 +48,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
   );
   const [settings, setSettings] =
     useState<ExtensionSettings>(DEFAULT_SETTINGS);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [onboardingExiting, setOnboardingExiting] = useState(false);
+  const wasInvalidRef = useRef(false);
+  const hasSeenOnboardingRef = useRef(false);
+  const [isViewerMode, setIsViewerMode] = useState(false);
 
   const [functionsLoaded, setFunctionsLoaded] = useState(false);
   const [importedFunctions, setImportedFunctions] =
@@ -61,6 +65,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
 
   // Config panel state
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   // Track whether we triggered the save to skip our own change listener
   const selfSaveRef = useRef(false);
 
@@ -258,31 +263,37 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
 
     const { onClick, onMouseMove } = importedFunctions;
 
+    const handleNodeClick = (e: Event) => {
+      if (validation && !validation.isValid) return;
+      const detail = (e as CustomEvent).detail as {
+        name: string; id: string; color: string;
+        clientX: number; clientY: number; pageX: number; pageY: number; ctrlKey: boolean;
+      };
+      const isEffectiveAuthoring = isAuthoringMode() && !isViewerMode;
+
+      if (isEffectiveAuthoring) {
+        // Author mode: open color picker
+        if (detail.name && colorPickerRef.current) {
+          colorPickerNodeRef.current = detail.name;
+          colorPickerIsDropoffRef.current = detail.id?.startsWith("dropoff-") ?? false;
+          colorPickerRef.current.value = detail.color || "#4e79a7";
+          colorPickerRef.current.style.position = "fixed";
+          colorPickerRef.current.style.left = `${detail.clientX}px`;
+          colorPickerRef.current.style.top = `${detail.clientY}px`;
+          colorPickerRef.current.click();
+        }
+      } else {
+        // Viewer mode: select/highlight connected flows
+        onClick(
+          { pageX: detail.pageX, pageY: detail.pageY, ctrlKey: detail.ctrlKey } as MouseEvent,
+          selectedMarks, hoveredMarks, layoutFlows
+        );
+        updateData(false);
+      }
+    };
+
     const handleClick = async (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
-
-      // In authoring mode, clicking a node opens a color picker for per-node overrides
-      if (isAuthoringMode()) {
-        const element = document.elementFromPoint(e.pageX, e.pageY);
-        if (element?.classList?.contains("node")) {
-          e.preventDefault();
-          e.stopPropagation();
-          const { select } = await import("d3-selection");
-          const nodeData = select(element).datum() as { id: string; name: string; color: string };
-          if (nodeData?.name && colorPickerRef.current) {
-            colorPickerNodeRef.current = nodeData.name;
-            colorPickerIsDropoffRef.current = nodeData.id?.startsWith("dropoff-") ?? false;
-            colorPickerRef.current.value = nodeData.color || "#4e79a7";
-            // Position near the clicked node
-            colorPickerRef.current.style.position = "fixed";
-            colorPickerRef.current.style.left = `${e.clientX}px`;
-            colorPickerRef.current.style.top = `${e.clientY}px`;
-            colorPickerRef.current.click();
-          }
-          return;
-        }
-      }
-
       onClick(e, selectedMarks, hoveredMarks, layoutFlows);
       await updateData(false);
     };
@@ -317,11 +328,13 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
       );
     };
 
+    document.body.addEventListener("node-click", handleNodeClick);
     document.body.addEventListener("click", handleClick);
     document.body.addEventListener("mousemove", handleMouseMove);
     document.body.addEventListener("mouseout", handleMouseOut);
 
     return () => {
+      document.body.removeEventListener("node-click", handleNodeClick);
       document.body.removeEventListener("click", handleClick);
       document.body.removeEventListener(
         "mousemove",
@@ -342,6 +355,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     layoutFlows,
     hiddenLabelNodeIds,
     updateData,
+    isViewerMode,
   ]);
 
   // Listen to worksheet data changes
@@ -391,11 +405,6 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     TableauSettings.save();
   }, []);
 
-  const handleDismissOnboarding = useCallback(() => {
-    TableauSettings.set("onboardingSeen", "true");
-    TableauSettings.save();
-    setSettings((prev) => ({ ...prev, onboardingSeen: true }));
-  }, []);
 
   const handleNodeColorChange = useCallback((color: string) => {
     const nodeName = colorPickerNodeRef.current;
@@ -438,10 +447,34 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     return () => picker.removeEventListener("change", handler);
   }, [handleNodeColorChange]);
 
-  const isAuthoring = isAuthoringMode();
+  const isRealAuthoring = isAuthoringMode();
+  const isAuthoring = isRealAuthoring && !isViewerMode;
 
-  const showOnboarding = !settings.onboardingSeen && !isInitialLoading &&
-    validation && !validation.isValid;
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!validation || isInitialLoading) return;
+    if (!validation.isValid) {
+      hasSeenOnboardingRef.current = true;
+      wasInvalidRef.current = true;
+    }
+    if (validation.isValid && wasInvalidRef.current && hasSeenOnboardingRef.current) {
+      wasInvalidRef.current = false;
+      setOnboardingComplete(true);
+      exitTimerRef.current = setTimeout(() => setOnboardingExiting(true), 1500);
+    }
+    if (!validation.isValid) {
+      if (exitTimerRef.current) {
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
+      }
+      setOnboardingComplete(false);
+      setOnboardingExiting(false);
+    }
+  }, [validation, isInitialLoading]);
+
+  const showOnboarding = !isInitialLoading &&
+    ((validation && !validation.isValid) || (onboardingComplete && !onboardingExiting));
 
   return (
     <>
@@ -455,15 +488,39 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
         {isInitialLoading ? (
           <LoadingState />
         ) : showOnboarding ? (
-          <div className="onboarding-overlay">
-            <div className="onboarding-card">
+          <div className={`onboarding-overlay${onboardingComplete ? " onboarding-overlay--complete" : ""}`}>
+            <div className={`onboarding-card${onboardingComplete ? " onboarding-card--complete" : ""}`}>
+              {(() => {
+                const progress =
+                  ((encodingMap.level?.length ?? 0) >= 1 ? 1 : 0) +
+                  ((encodingMap.level?.length ?? 0) >= 2 ? 1 : 0) +
+                  ((encodingMap.edge?.length ?? 0) >= 1 ? 1 : 0);
+                return (
+                  <img
+                    src={`assets/lux-whiteboard-${progress}.png`}
+                    alt="Lux mascot presenting a Sankey diagram"
+                    className="onboarding-mascot"
+                  />
+                );
+              })()}
               <h2 className="onboarding-title">Welcome to Sankey Flow</h2>
+              <p style={{ margin: "-16px 0 24px", fontSize: "14px", color: "#666" }}>
+                by <a href="https://lukholc.me" target="_blank" rel="noopener noreferrer" style={{ color: "#4e79a7", textDecoration: "none" }}>Łukasz Holc</a>
+              </p>
               <div className="onboarding-steps">
                 <div className="onboarding-step">
                   <div className="onboarding-step-number">1</div>
                   <div>
                     <strong>Add Stages</strong>
                     <p>Drag at least 2 dimensions to the <em>Stage</em> encoding to define columns</p>
+                    <div className="onboarding-dots">
+                      {[0, 1].map((i) => (
+                        <span
+                          key={i}
+                          className={`onboarding-dot ${(encodingMap.level?.length ?? 0) > i ? "onboarding-dot--pass" : ""}`}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="onboarding-step">
@@ -471,23 +528,28 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div>
                     <strong>Add a Measure</strong>
                     <p>Drag a measure to the <em>Flow</em> encoding to define flow sizes</p>
+                    <div className="onboarding-dots">
+                      <span
+                        className={`onboarding-dot ${(encodingMap.edge?.length ?? 0) >= 1 ? "onboarding-dot--pass" : ""}`}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="onboarding-step">
                   <div className="onboarding-step-number">3</div>
                   <div>
                     <strong>Configure (optional)</strong>
-                    <p>Click the gear icon to customise colors and layout</p>
+                    <p>Click the gear icon to customise colors, layout, and a lot more</p>
                   </div>
                 </div>
               </div>
-              <button className="onboarding-dismiss" onClick={handleDismissOnboarding}>
-                Got it
-              </button>
+              {onboardingComplete && (
+                <div className="onboarding-ready">
+                  Ready! Loading your Sankey...
+                </div>
+              )}
             </div>
           </div>
-        ) : validation && !validation.isValid ? (
-          <ErrorState validation={validation} />
         ) : (
           <>
             {isAuthoring && ((validation && validation.warnings.length > 0) || dataWarnings.length > 0) && (
@@ -508,6 +570,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
               settings={settings}
               isAuthoring={isAuthoring}
               onConfigToggle={() => setIsConfigOpen((prev) => !prev)}
+              onAboutToggle={() => setIsAboutOpen((prev) => !prev)}
               onRenderComplete={handleRenderComplete}
             />
           </>
@@ -526,6 +589,59 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
           onSettingChange={handleSettingChange}
           onBatchSettingChange={handleBatchSettingChange}
         />
+      )}
+      {isAboutOpen && (
+        <div className="about-overlay" onClick={() => setIsAboutOpen(false)}>
+          <div className="about-panel" onClick={(e) => e.stopPropagation()}>
+            <button className="about-close" onClick={() => setIsAboutOpen(false)}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <path d="M1.707.293A1 1 0 0 0 .293 1.707L5.586 7 .293 12.293a1 1 0 1 0 1.414 1.414L7 8.414l5.293 5.293a1 1 0 0 0 1.414-1.414L8.414 7l5.293-5.293A1 1 0 0 0 12.293.293L7 5.586 1.707.293z"/>
+              </svg>
+            </button>
+            <img
+              src="assets/lux-whiteboard.png"
+              alt="Lux mascot"
+              className="about-mascot"
+            />
+            <h2 className="about-title">Sankey Flow</h2>
+            <p className="about-author">
+              by <a href="https://lukholc.me" target="_blank" rel="noopener noreferrer">Łukasz Holc</a>
+            </p>
+            <p className="about-description">
+              Interactive Sankey diagram extension for Tableau. Visualise how values flow, split, and merge across stages with gradient flows, smart labels, drag-to-reorder nodes, and more.
+            </p>
+            <a
+              className="about-link"
+              href="https://github.com/Luzgan/sankey-tableau-extension/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Need help or found a bug?
+            </a>
+            <div className="about-changelog">
+              <h3 className="about-changelog-title">Changelog</h3>
+              <div className="about-changelog-entry">
+                <span className="about-changelog-version">v1.0.0</span>
+                <span className="about-changelog-date">March 2026</span>
+                <p>Initial release — multi-stage Sankey diagrams, gradient flows, drop-off mode, drag-to-reorder nodes, smart labels, colour overrides, tooltips, SVG/PNG export, and Tableau selection integration.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {isRealAuthoring && !showOnboarding && (
+        <button
+          className={`viewer-toggle${isViewerMode ? " viewer-toggle--active" : ""}`}
+          onClick={() => setIsViewerMode((prev) => !prev)}
+          title={isViewerMode ? "See as author" : "See as viewer"}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664h10z"/>
+          </svg>
+          <span className="viewer-toggle-label">
+            {isViewerMode ? "See as author" : "See as viewer"}
+          </span>
+        </button>
       )}
     </>
   );

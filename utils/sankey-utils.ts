@@ -52,6 +52,7 @@ export interface SankeyNode {
   name: string;
   layer: number;
   color: string;
+  colorValue?: string;
   x0?: number;
   x1?: number;
   y0?: number;
@@ -311,9 +312,12 @@ export async function Sankey(
       }
     };
 
+    let dragMoved = false;
+
     nodeRects.call(
       drag<SVGRectElement, SankeyNode>()
         .on("start", function (_event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+          dragMoved = false;
           select(this).raise().attr("stroke-width", 2);
 
           // Snapshot the layer's node order, heights, and compute uniform gap
@@ -335,6 +339,7 @@ export async function Sankey(
           layerGap = dragOrder.length > 1 ? (layerSpan - totalNodeHeight) / (dragOrder.length - 1) : 0;
         })
         .on("drag", function (event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+          dragMoved = true;
           // Move dragged node visually (free Y, constrained to chart bounds)
           const dragH = nodeHeights.get(d.id) || ((d.y1 || 0) - (d.y0 || 0));
           const oldY0 = d.y0 || 0;
@@ -399,9 +404,24 @@ export async function Sankey(
             svg.selectAll<SVGTextElement, SankeyLink>(".flow-label")
               .attr("y", (ld: SankeyLink) => ((ld.y0 || 0) + (ld.y1 || 0)) / 2);
           }
+          // Update selection/hovering overlay paths to follow the flows
+          svg.selectAll("g.selectionOutline path, g[aria-hidden] path")
+            .attr("d", function (this: SVGPathElement) {
+              const datum = select(this).datum() as { attr?: (name: string) => string };
+              return datum?.attr ? datum.attr("d") : select(this).attr("d");
+            });
         })
-        .on("end", function (_event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
+        .on("end", function (event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
           select(this).attr("stroke-width", NODE_BORDER_WIDTH);
+
+          if (!dragMoved) {
+            const sourceEvent = event.sourceEvent as MouseEvent;
+            this.dispatchEvent(new CustomEvent("node-click", {
+              bubbles: true,
+              detail: { name: d.name, id: d.id, color: d.color, clientX: sourceEvent.clientX, clientY: sourceEvent.clientY, pageX: sourceEvent.pageX, pageY: sourceEvent.pageY, ctrlKey: sourceEvent.ctrlKey },
+            }));
+            return;
+          }
 
           // Snap dragged node to its computed position in the order
           recomputeLayerPositions(""); // recompute all including dragged
@@ -937,6 +957,48 @@ export function getEncodedData(
     }
   }
 
+  // Track color encoding values per node (most frequent value wins)
+  const colorField = encodingMap.color?.[0];
+  const nodeColorCounts = new Map<string, Map<string, number>>();
+
+  if (colorField && encodingMap.level) {
+    for (const row of data) {
+      const colorCell = row[colorField.name];
+      if (!colorCell) continue;
+      const colorVal = colorCell.formattedValue?.toString() || colorCell.value?.toString() || "";
+      if (!colorVal) continue;
+
+      for (let stageIndex = 0; stageIndex < encodingMap.level.length; stageIndex++) {
+        const stageField = encodingMap.level[stageIndex];
+        const rawValue = row[stageField.name]?.value?.toString() ?? "";
+        if (isNullValue(rawValue) && effectiveSettings.ignoreNulls) continue;
+        const key = isNullValue(rawValue) ? NULL_DISPLAY_NAME : rawValue;
+        const nodeId = `${stageIndex}-${key}`;
+
+        if (!nodeColorCounts.has(nodeId)) {
+          nodeColorCounts.set(nodeId, new Map());
+        }
+        const counts = nodeColorCounts.get(nodeId)!;
+        counts.set(colorVal, (counts.get(colorVal) || 0) + 1);
+      }
+    }
+
+    // Assign most frequent color value to each node
+    for (const node of nodes) {
+      const counts = nodeColorCounts.get(node.id);
+      if (!counts || counts.size === 0) continue;
+      let maxVal = "";
+      let maxCount = 0;
+      for (const [val, count] of counts) {
+        if (count > maxCount) {
+          maxCount = count;
+          maxVal = val;
+        }
+      }
+      node.colorValue = maxVal;
+    }
+  }
+
   // Identify detail fields: columns in the data that aren't level or edge encodings
   const encodedFieldNames = new Set<string>();
   if (encodingMap.level) {
@@ -944,6 +1006,9 @@ export function getEncodedData(
   }
   if (encodingMap.edge) {
     for (const f of encodingMap.edge) encodedFieldNames.add(f.name);
+  }
+  if (encodingMap.color) {
+    for (const f of encodingMap.color) encodedFieldNames.add(f.name);
   }
   const detailFieldNames: string[] = [];
   if (data.length > 0) {
@@ -1485,6 +1550,19 @@ export function computeSankeyLayout(
     } catch { /* fallback */ }
   }
 
+  // Build color encoding map: unique colorValues → palette colors
+  const colorValueMap = new Map<string, string>();
+  const hasColorEncoding = layout.nodes.some((n: SankeyNode) => n.colorValue);
+  if (hasColorEncoding) {
+    const uniqueColorValues: string[] = [];
+    for (const node of layout.nodes as SankeyNode[]) {
+      if (node.colorValue && !colorValueMap.has(node.colorValue)) {
+        colorValueMap.set(node.colorValue, selectedPalette[uniqueColorValues.length % selectedPalette.length]);
+        uniqueColorValues.push(node.colorValue);
+      }
+    }
+  }
+
   layout.nodes.forEach((node: SankeyNode) => {
     // Drop-off nodes keep their pre-assigned color (DROPOFF_COLOR or per-node override)
     if (node.id.startsWith("dropoff-")) return;
@@ -1492,6 +1570,12 @@ export function computeSankeyLayout(
     // Per-node override takes highest priority (works with any color scheme)
     if (nodeOverrides[node.name]) {
       node.color = nodeOverrides[node.name];
+      return;
+    }
+
+    // Color encoding: nodes with same colorValue get the same palette color
+    if (node.colorValue && colorValueMap.has(node.colorValue)) {
+      node.color = colorValueMap.get(node.colorValue)!;
       return;
     }
 
