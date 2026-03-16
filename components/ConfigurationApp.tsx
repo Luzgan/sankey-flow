@@ -65,9 +65,9 @@ const LABEL_VERTICAL_ALIGN_OPTIONS: RadioOption[] = [
 ];
 
 const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
-  { value: "minimal", label: "Minimal", description: "Name and value only" },
-  { value: "detailed", label: "Detailed", description: "Name, value, percentage, and flow direction" },
-  { value: "custom", label: "Custom template", description: "Define your own HTML template with placeholders" },
+  { value: "minimal", label: "Simple", description: "Shows name and value" },
+  { value: "detailed", label: "Full details", description: "Shows name, value, percentage, and where the flow comes from and goes to" },
+  { value: "custom", label: "Custom layout", description: "Design your own tooltip using keywords that get replaced with real data" },
 ];
 
 const SANKEY_TYPE_OPTIONS: RadioOption[] = [
@@ -77,7 +77,7 @@ const SANKEY_TYPE_OPTIONS: RadioOption[] = [
 
 const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
   { value: "default", label: "Default", description: "All drop-off nodes use the standard red color" },
-  { value: "perNode", label: "Per node", description: "Override colors for individual drop-off nodes" },
+  { value: "perNode", label: "Per node", description: "Click any drop-off node in author mode to pick its color" },
 ];
 
 
@@ -281,9 +281,6 @@ const NodeColorEditor: React.FC<{
           className="node-color-input"
         />
         <button onClick={handleAdd} className="btn btn-save" style={{ padding: "4px 12px", minWidth: "auto" }}>Add</button>
-      </div>
-      <div className="help-text" style={{ marginLeft: 0 }}>
-        Click a node on the chart to pick its color, or type a name above and click Add. Missing overrides fall back to the palette.
       </div>
     </div>
   );
@@ -490,12 +487,6 @@ export const ConfigurationApp: React.FC = () => {
     }));
   };
 
-  const hasNodeColorOverrides = (() => {
-    try {
-      const parsed: unknown = JSON.parse(settings.nodeColorOverrides);
-      return parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, unknown>).length > 0;
-    } catch { return false; }
-  })();
 
   const anyLabelShown = settings.showLabels || settings.showValues || settings.showFlowLabels || settings.showStageLabels;
 
@@ -542,17 +533,12 @@ export const ConfigurationApp: React.FC = () => {
 
         <CheckboxOption
           label="Override individual node colors"
-          description="Pick custom colors for specific nodes. Overrides apply on top of whatever palette is selected above."
+          description="Click any node in author mode to pick its color. Overrides apply on top of whatever palette is selected above."
           checked={settings.enableNodeColorOverrides}
           onChange={(v) => updateSetting("enableNodeColorOverrides", v)}
         />
         {settings.enableNodeColorOverrides && (
           <>
-            {!hasNodeColorOverrides && (
-              <div className="help-text" style={{ marginBottom: 8 }}>
-                No overrides yet. Click any node on the chart to pick its color, or add one manually below.
-              </div>
-            )}
             <NodeColorEditor
               overridesJson={settings.nodeColorOverrides}
               onChange={(json) => updateSetting("nodeColorOverrides", json)}
@@ -872,7 +858,7 @@ export const ConfigurationApp: React.FC = () => {
                   rows={4}
                 />
                 <div className="help-text">
-                  Placeholders: {"{name}"}, {"{value}"}, {"{percentage}"}, {"{source}"}, {"{target}"}, {"{level}"}. Basic HTML allowed.
+                  Use these keywords — they will be replaced with actual data: {"{name}"} (node name), {"{value}"} (flow amount), {"{percentage}"} (share of total), {"{source}"} (where flow comes from), {"{target}"} (where flow goes to), {"{level}"} (stage name). Basic HTML allowed.
                 </div>
               </div>
             ) : null}

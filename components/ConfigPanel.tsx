@@ -67,9 +67,9 @@ const LABEL_VERTICAL_ALIGN_OPTIONS: RadioOption[] = [
 ];
 
 const TOOLTIP_MODE_OPTIONS: RadioOption[] = [
-  { value: "minimal", label: "Minimal", description: "Name and value only" },
-  { value: "detailed", label: "Detailed", description: "Name, value, percentage, and flow direction" },
-  { value: "custom", label: "Custom template", description: "Define your own HTML template with placeholders" },
+  { value: "minimal", label: "Simple", description: "Shows name and value" },
+  { value: "detailed", label: "Full details", description: "Shows name, value, percentage, and where the flow comes from and goes to" },
+  { value: "custom", label: "Custom layout", description: "Design your own tooltip using keywords that get replaced with real data" },
 ];
 
 const SANKEY_TYPE_OPTIONS: RadioOption[] = [
@@ -309,9 +309,6 @@ const NodeColorEditor: React.FC<{
         />
         <button onClick={handleAdd} className="cp-btn cp-btn-secondary" style={{ padding: "4px 12px", minWidth: "auto" }}>Add</button>
       </div>
-      <div className="cp-help-text" style={{ marginLeft: 0 }}>
-        Click a node on the chart to pick its color, or type a name above and click Add.
-      </div>
     </div>
   );
 };
@@ -478,12 +475,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     });
   };
 
-  const hasNodeColorOverrides = (() => {
-    try {
-      const parsed: unknown = JSON.parse(settings.nodeColorOverrides);
-      return parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, unknown>).length > 0;
-    } catch { return false; }
-  })();
 
   const anyLabelShown = settings.showLabels || settings.showValues || settings.showFlowLabels || settings.showStageLabels;
 
@@ -546,17 +537,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
               <CheckboxOption
                 label="Override individual node colors"
-                description="Pick custom colors for specific nodes"
+                description="Click any node in author mode to pick its color"
                 checked={settings.enableNodeColorOverrides}
                 onChange={(v) => onSettingChange("enableNodeColorOverrides", v)}
               />
               {settings.enableNodeColorOverrides && (
                 <>
-                  {!hasNodeColorOverrides && (
-                    <div className="cp-help-text" style={{ marginBottom: 8 }}>
-                      No overrides yet. Click any node on the chart to pick its color.
-                    </div>
-                  )}
                   <NodeColorEditor
                     overridesJson={settings.nodeColorOverrides}
                     onChange={(json) => onSettingChange("nodeColorOverrides", json)}
@@ -575,7 +561,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   />
                   <CheckboxOption
                     label="Override individual drop-off colors"
-                    description="Pick custom colors for specific drop-off nodes"
+                    description="Click any drop-off node in author mode to pick its color"
                     checked={settings.enableDropoffColorOverrides}
                     onChange={(v) => onSettingChange("enableDropoffColorOverrides", v)}
                   />
@@ -792,7 +778,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       rows={4}
                     />
                     <div className="cp-help-text" style={{ marginLeft: 0 }}>
-                      Placeholders: {"{name}"}, {"{value}"}, {"{percentage}"}, {"{source}"}, {"{target}"}, {"{level}"}
+                      Use these keywords — they will be replaced with actual data: {"{name}"} (node name), {"{value}"} (flow amount), {"{percentage}"} (share of total), {"{source}"} (where flow comes from), {"{target}"} (where flow goes to), {"{level}"} (stage name)
                     </div>
                   </div>
                 ) : null}
