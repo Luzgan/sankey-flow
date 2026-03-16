@@ -15,6 +15,7 @@ import {
   DEFAULT_SETTINGS,
 } from "../utils/constants";
 import type { SankeyLink } from "../utils/sankey-utils";
+import { LUX_WHITEBOARD_0, LUX_WHITEBOARD_1, LUX_WHITEBOARD_2, LUX_WHITEBOARD_3, LUX_WHITEBOARD } from "../utils/lux-images";
 
 interface SankeyAppProps {
   worksheet: any;
@@ -491,13 +492,14 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
           <div className={`onboarding-overlay${onboardingComplete ? " onboarding-overlay--complete" : ""}`}>
             <div className={`onboarding-card${onboardingComplete ? " onboarding-card--complete" : ""}`}>
               {(() => {
+                const luxImages = [LUX_WHITEBOARD_0, LUX_WHITEBOARD_1, LUX_WHITEBOARD_2, LUX_WHITEBOARD_3];
                 const progress =
                   ((encodingMap.level?.length ?? 0) >= 1 ? 1 : 0) +
                   ((encodingMap.level?.length ?? 0) >= 2 ? 1 : 0) +
                   ((encodingMap.edge?.length ?? 0) >= 1 ? 1 : 0);
                 return (
                   <img
-                    src={`assets/lux-whiteboard-${progress}.png`}
+                    src={luxImages[progress]}
                     alt="Lux mascot presenting a Sankey diagram"
                     className="onboarding-mascot"
                   />
@@ -599,7 +601,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
               </svg>
             </button>
             <img
-              src="assets/lux-whiteboard.png"
+              src={LUX_WHITEBOARD}
               alt="Lux mascot"
               className="about-mascot"
             />
