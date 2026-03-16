@@ -17,5 +17,5 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/sankey-tableau-extension
+            cd ~/sankey-flow
             bash deploy/deploy.sh

@@ -614,7 +614,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
             </p>
             <a
               className="about-link"
-              href="https://github.com/Luzgan/sankey-tableau-extension/issues"
+              href="https://github.com/Luzgan/sankey-flow/issues"
               target="_blank"
               rel="noopener noreferrer"
             >

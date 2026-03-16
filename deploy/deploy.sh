@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-REPO_DIR="/home/ec2-user/sankey-tableau-extension"
+REPO_DIR="/home/ec2-user/sankey-flow"
 DEPLOY_DIR="/var/www/sankeyflow"
 
 cd "$REPO_DIR"
