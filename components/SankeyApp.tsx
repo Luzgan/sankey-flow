@@ -523,14 +523,6 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div>
                     <strong>Add Stages</strong>
                     <p>Drag at least 2 dimensions to the <em>Stage</em> encoding to define columns</p>
-                    <div className="onboarding-dots">
-                      {[0, 1].map((i) => (
-                        <span
-                          key={i}
-                          className={`onboarding-dot ${(encodingMap.level?.length ?? 0) > i ? "onboarding-dot--pass" : ""}`}
-                        />
-                      ))}
-                    </div>
                   </div>
                 </div>
                 <div className="onboarding-step">
@@ -538,18 +530,13 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div>
                     <strong>Add a Measure</strong>
                     <p>Drag a measure to the <em>Flow</em> encoding to define flow sizes</p>
-                    <div className="onboarding-dots">
-                      <span
-                        className={`onboarding-dot ${(encodingMap.edge?.length ?? 0) >= 1 ? "onboarding-dot--pass" : ""}`}
-                      />
-                    </div>
                   </div>
                 </div>
                 <div className="onboarding-step">
                   <div className="onboarding-step-number">3</div>
                   <div>
-                    <strong>Configure (optional)</strong>
-                    <p>Click the gear icon to customise colors, layout, and a lot more</p>
+                    <strong>Format (optional)</strong>
+                    <p>Right-click the chart and choose <em>Format Extension</em> to customise colors, layout, and more</p>
                   </div>
                 </div>
               </div>
