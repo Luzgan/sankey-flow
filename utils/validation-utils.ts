@@ -31,19 +31,11 @@ export function validateSankeyConfiguration(
     errors.push(
       `Sankey visualization supports up to 5 level fields. Currently configured: ${levelFields.length}`
     );
-  } else if (levelFields.length > 3) {
-    warnings.push(
-      `Sankey visualization works best with 2-3 level fields. Currently configured: ${levelFields.length}`
-    );
   }
 
   if (edgeFields.length < 1) {
     errors.push(
       `Sankey visualization requires exactly 1 edge field. Currently configured: ${edgeFields.length}`
-    );
-  } else if (edgeFields.length > 1) {
-    warnings.push(
-      `Sankey visualization works best with exactly 1 edge field. Currently configured: ${edgeFields.length}`
     );
   }
 

@@ -536,7 +536,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div className="onboarding-step-number">3</div>
                   <div>
                     <strong>Format (optional)</strong>
-                    <p>Right-click the chart and choose <em>Format Extension</em> to customise colors, layout, and more</p>
+                    <p>Click <em>Format Extension</em> beneath the mark cards to customise colors, layout, and more</p>
                   </div>
                 </div>
               </div>
