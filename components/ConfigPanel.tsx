@@ -410,7 +410,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   return (
     <>
       {/* Backdrop */}
-      {isOpen && <div className="cp-backdrop" onClick={onClose} />}
+      {isOpen && <div className="cp-backdrop" />}
 
       {/* Panel */}
       <div className={`cp-panel${isOpen ? " cp-panel-open" : ""}`}>
