@@ -206,7 +206,7 @@ function getOrCreateTooltip(): HTMLDivElement {
       "border:1px solid #ccc",
       "border-radius:4px",
       "padding:6px 10px",
-      'font-size:12px',
+      'font-size:13px',
       'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
       "box-shadow:0 2px 4px rgba(0,0,0,0.15)",
       "z-index:10000",
@@ -246,12 +246,13 @@ function buildTooltipHtml(
 /**
  * Show tooltip at the given position with HTML content
  */
-function showTooltip(x: number, y: number, html: string): void {
+function showTooltip(x: number, y: number, html: string, fontSize?: number): void {
   const tooltip = getOrCreateTooltip();
   tooltip.innerHTML = sanitizeTooltipHtml(html);
   tooltip.style.display = "block";
   tooltip.style.left = `${x + TOOLTIP_OFFSET_X}px`;
   tooltip.style.top = `${y + TOOLTIP_OFFSET_Y}px`;
+  if (fontSize) tooltip.style.fontSize = `${fontSize}px`;
 }
 
 /**
@@ -461,7 +462,7 @@ export async function onMouseMove(
         level: String(nodeData.layer),
       };
       const tooltipHtml = getTooltipContent(settings, placeholders, "node");
-      showTooltip(e.pageX, e.pageY, tooltipHtml);
+      showTooltip(e.pageX, e.pageY, tooltipHtml, settings.tooltipFontSize);
     } else {
       hideTooltip();
     }
@@ -505,7 +506,7 @@ export async function onMouseMove(
         level: "",
       };
       const tooltipHtml = getTooltipContent(settings, placeholders, "link", data.detailValues);
-      showTooltip(e.pageX, e.pageY, tooltipHtml);
+      showTooltip(e.pageX, e.pageY, tooltipHtml, settings.tooltipFontSize);
     } else if (data.detailValues && Object.keys(data.detailValues).length > 0) {
       // Even without percentages, show detail values when available
       const sourceName =
@@ -518,7 +519,8 @@ export async function onMouseMove(
           : data.target.name;
       const detailHtml = formatDetailHtml(data.detailValues);
       showTooltip(e.pageX, e.pageY,
-        `<b>${sourceName}</b> \u2192 <b>${targetName}</b>: ${data.value.toLocaleString()}<br>${detailHtml}`);
+        `<b>${sourceName}</b> \u2192 <b>${targetName}</b>: ${data.value.toLocaleString()}<br>${detailHtml}`,
+        settings.tooltipFontSize);
     } else {
       hideTooltip();
     }

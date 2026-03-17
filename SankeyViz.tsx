@@ -9,7 +9,12 @@ window.onload = () => {
   console.log("Extension loading...");
 
   tableau.extensions
-    .initializeAsync()
+    .initializeAsync({
+      configure: () => {
+        document.body.dispatchEvent(new CustomEvent("open-config-panel"));
+        return {};
+      },
+    })
     .then(async () => {
       console.log("Extension initialized successfully");
 

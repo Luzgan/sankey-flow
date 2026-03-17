@@ -10,6 +10,7 @@ interface SankeyChartProps {
   styles: any;
   settings: ExtensionSettings;
   isAuthoring?: boolean;
+  isConfigOpen?: boolean;
   onConfigToggle?: () => void;
   onAboutToggle?: () => void;
   onRenderComplete?: (result: {
@@ -29,6 +30,7 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   styles,
   settings,
   isAuthoring,
+  isConfigOpen,
   onConfigToggle,
   onAboutToggle,
   onRenderComplete,
@@ -76,6 +78,14 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, []);
+
+  // Dispatch resize after config panel transition to trigger chart redraw
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 260);
+    return () => clearTimeout(timer);
+  }, [isConfigOpen]);
 
   useEffect(() => {
     const renderChart = async () => {
@@ -220,7 +230,12 @@ export const SankeyChart: React.FC<SankeyChartProps> = ({
   ]);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+    <div style={{
+      width: isConfigOpen ? "calc(100% - 340px)" : "100%",
+      height: "100%",
+      position: "relative",
+      transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+    }}>
       <svg
         ref={svgRef}
         style={{

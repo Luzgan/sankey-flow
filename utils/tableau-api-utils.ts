@@ -187,6 +187,7 @@ export const TableauInit = {
   /**
    * Initialize extension with error handling
    */
+  // eslint-disable-next-line @typescript-eslint/ban-types -- Tableau API types use () => {} for the configure callback
   async initialize(options?: { configure?: () => {} }): Promise<boolean> {
     try {
       const extensions = getTableauExtensions();

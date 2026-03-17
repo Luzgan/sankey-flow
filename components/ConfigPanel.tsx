@@ -6,8 +6,6 @@ import {
   NODE_WIDTH_MIN,
   NODE_WIDTH_MAX,
   TABLEAU_FONTS,
-  MARGIN_MIN,
-  MARGIN_MAX,
 } from "../utils/constants";
 
 // ---------------------------------------------------------------------------
@@ -25,7 +23,6 @@ const COLOR_SCHEME_OPTIONS: RadioOption[] = [
   { value: "colorblind", label: "Colorblind-friendly", description: "Optimized for color vision deficiency" },
   { value: "monochrome", label: "Grayscale", description: "Single-hue palette for print or minimal design" },
   { value: "custom", label: "Custom palette", description: "Define your own 10-color palette" },
-  { value: "perStage", label: "Per stage", description: "Different color palettes for each stage" },
 ];
 
 const FLOW_STYLE_OPTIONS: RadioOption[] = [
@@ -79,7 +76,6 @@ const SANKEY_TYPE_OPTIONS: RadioOption[] = [
 
 const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
   { value: "default", label: "Default", description: "All drop-off nodes use the standard red color" },
-  { value: "perStage", label: "Per stage", description: "Drop-off nodes inherit the color palette of their stage" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -313,96 +309,6 @@ const NodeColorEditor: React.FC<{
   );
 };
 
-const STAGE_PALETTE_SIZE = 6;
-const DEFAULT_STAGE_COLORS = ["#4e79a7", "#f28e2c", "#e15759", "#76b7b2", "#59a14f", "#edc949"];
-
-const StagePaletteEditor: React.FC<{
-  palettesJson: string;
-  onChange: (json: string) => void;
-}> = ({ palettesJson, onChange }) => {
-  let palettes: Record<string, string[]>;
-  try {
-    const parsed: unknown = JSON.parse(palettesJson);
-    palettes = (parsed && typeof parsed === "object") ? parsed as Record<string, string[]> : {};
-  } catch {
-    palettes = {};
-  }
-
-  const stageKeys = Object.keys(palettes).map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);
-
-  const updateStage = (level: number, colors: string[]): void => {
-    onChange(JSON.stringify({ ...palettes, [String(level)]: colors }));
-  };
-
-  const handleColorChange = (level: number, index: number, color: string): void => {
-    const current = palettes[String(level)] || DEFAULT_STAGE_COLORS.slice();
-    const updated = [...current];
-    updated[index] = color;
-    updateStage(level, updated);
-  };
-
-  const addStage = (): void => {
-    const nextLevel = stageKeys.length > 0 ? Math.max(...stageKeys) + 1 : 0;
-    const offset = nextLevel % DEFAULT_STAGE_COLORS.length;
-    const colors = [...DEFAULT_STAGE_COLORS.slice(offset), ...DEFAULT_STAGE_COLORS.slice(0, offset)];
-    updateStage(nextLevel, colors.slice(0, STAGE_PALETTE_SIZE));
-  };
-
-  const removeStage = (level: number): void => {
-    const updated = { ...palettes };
-    delete updated[String(level)];
-    onChange(JSON.stringify(updated));
-  };
-
-  return (
-    <div className="cp-palette-editor" style={{ textAlign: "left" }}>
-      <div className="cp-help-text" style={{ marginBottom: 8, marginLeft: 0 }}>
-        Each stage gets its own palette. Nodes cycle through the colors left to right.
-      </div>
-      {stageKeys.length === 0 ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div className="cp-help-text" style={{ margin: 0, fontStyle: "italic" }}>No stages configured yet.</div>
-          <button onClick={addStage} className="cp-btn cp-btn-secondary" style={{ padding: "4px 12px", minWidth: "auto", fontSize: 13, whiteSpace: "nowrap" }}>
-            + Add stage
-          </button>
-        </div>
-      ) : (
-        <>
-          {stageKeys.map((level) => {
-            const colors = palettes[String(level)] || [];
-            while (colors.length < STAGE_PALETTE_SIZE) colors.push("#808080");
-            return (
-              <div key={level} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Stage {level + 1}</span>
-                  <button className="cp-node-color-remove" onClick={() => removeStage(level)} title="Remove stage">&times;</button>
-                </div>
-                <div className="cp-palette-swatches" style={{ justifyContent: "flex-start" }}>
-                  {colors.slice(0, STAGE_PALETTE_SIZE).map((color, i) => (
-                    <input
-                      key={i}
-                      type="color"
-                      className="cp-color-swatch"
-                      value={color}
-                      onChange={(e) => handleColorChange(level, i, e.target.value)}
-                      title={`Stage ${level + 1}, color ${i + 1}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-            <button onClick={addStage} className="cp-btn cp-btn-secondary" style={{ padding: "4px 12px", minWidth: "auto", fontSize: 13 }}>
-              + Add stage
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
 // ---------------------------------------------------------------------------
 // Accordion section
 // ---------------------------------------------------------------------------
@@ -454,6 +360,27 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       if (next.has(section)) {
         next.delete(section);
       } else {
+        const isNested = section.includes(".");
+        if (isNested) {
+          // Close sibling nested sections (same parent prefix)
+          const parentPrefix = section.substring(0, section.lastIndexOf(".") + 1);
+          for (const open of prev) {
+            if (open.startsWith(parentPrefix) && open !== section) {
+              next.delete(open);
+            }
+          }
+        } else {
+          // Close all other top-level sections and their children
+          for (const open of prev) {
+            if (!open.includes(".") && open !== section) {
+              next.delete(open);
+            }
+            // Also close children of other top-level sections
+            if (open.includes(".") && !open.startsWith(`${section}.`)) {
+              next.delete(open);
+            }
+          }
+        }
         next.add(section);
       }
       return next;
@@ -525,12 +452,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       onChange={(json) => onSettingChange("customColors", json)}
                     />
                   );
-                  if (v === "perStage") return (
-                    <StagePaletteEditor
-                      palettesJson={settings.stagePalettes}
-                      onChange={(json) => onSettingChange("stagePalettes", json)}
-                    />
-                  );
                   return null;
                 }}
               />
@@ -578,19 +499,22 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             {/* Layout */}
             <AccordionSection nested title="Layout" isOpen={openSections.has("nodes.layout")} onToggle={() => toggleSection("nodes.layout")}>
               <RadioGroup
-                label="Distribution"
-                name="nodeAlignment"
-                value={settings.nodeAlignment}
-                onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
-                options={NODE_ALIGNMENT_OPTIONS}
-              />
-              <RadioGroup
                 label="Sort order"
                 name="nodeSort"
                 value={settings.nodeSort}
                 onChange={(v) => onSettingChange("nodeSort", v as ExtensionSettings["nodeSort"])}
                 options={NODE_SORT_OPTIONS}
               />
+              <RadioGroup
+                label="Vertical alignment"
+                name="nodeAlignment"
+                value={settings.nodeAlignment}
+                onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
+                options={NODE_ALIGNMENT_OPTIONS}
+              />
+              <div className="cp-help-text" style={{ marginBottom: 12 }}>
+                Controls vertical positioning of nodes. Most visible when nodes have different sizes across a stage.
+              </div>
               <CheckboxOption
                 label="Drag to reorder"
                 description="Drag nodes up or down to override the sort order"
@@ -639,6 +563,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 min={NODE_WIDTH_MIN}
                 max={NODE_WIDTH_MAX}
                 onChange={(v) => onSettingChange("nodeWidth", v)}
+              />
+              <CheckboxOption
+                label="Show node borders"
+                description="Draw a border around each node rectangle"
+                checked={settings.showNodeBorders}
+                onChange={(v) => onSettingChange("showNodeBorders", v)}
               />
             </AccordionSection>
 
@@ -750,40 +680,55 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
           {/* Tooltips */}
           <AccordionSection title="Tooltips" isOpen={openSections.has("tooltips")} onToggle={() => toggleSection("tooltips")}>
-            <CheckboxOption
-              label="Show tooltips"
-              description="Show value and percentage when hovering over flows or nodes"
-              checked={settings.showPercentages}
-              onChange={(v) => onSettingChange("showPercentages", v)}
-            />
-            <CheckboxOption
-              label="Show Tableau tooltip"
-              description="Also show Tableau's native tooltip"
-              checked={settings.showTableauTooltip}
-              onChange={(v) => onSettingChange("showTableauTooltip", v)}
-            />
-            {settings.showPercentages && !settings.showTableauTooltip && (
-              <RadioGroup
-                label="Tooltip Style"
-                name="tooltipMode"
-                value={settings.tooltipMode}
-                onChange={(v) => onSettingChange("tooltipMode", v as ExtensionSettings["tooltipMode"])}
-                options={TOOLTIP_MODE_OPTIONS}
-                renderExtra={(v) => v === "custom" ? (
-                  <div className="cp-form-group" style={{ marginLeft: 28, marginTop: 8 }}>
-                    <textarea
-                      className="cp-template-textarea"
-                      value={settings.tooltipTemplate}
-                      onChange={(e) => onSettingChange("tooltipTemplate", e.target.value)}
-                      rows={4}
-                    />
-                    <div className="cp-help-text" style={{ marginLeft: 0 }}>
-                      Use these keywords — they will be replaced with actual data: {"{name}"} (node name), {"{value}"} (flow amount), {"{percentage}"} (share of total), {"{source}"} (where flow comes from), {"{target}"} (where flow goes to), {"{level}"} (stage name)
+            {(() => {
+              const tooltipValue = settings.showTableauTooltip ? "tableau" : settings.showPercentages ? "extension" : "off";
+              return (
+                <RadioGroup
+                  label="Tooltip mode"
+                  name="tooltipMode-top"
+                  value={tooltipValue}
+                  onChange={(v) => {
+                    onBatchSettingChange({
+                      showPercentages: v === "extension",
+                      showTableauTooltip: v === "tableau",
+                    });
+                  }}
+                  options={[
+                    { value: "off", label: "Off", description: "No tooltips on hover" },
+                    { value: "extension", label: "Extension tooltip", description: "Show value and percentage on hover" },
+                    { value: "tableau", label: "Tableau tooltip", description: "Show Tableau\u2019s native tooltip with the underlying data row" },
+                  ]}
+                  renderExtra={(v) => v === "extension" ? (
+                    <div style={{ marginLeft: 24, marginTop: 4 }}>
+                      <RadioGroup
+                        label="Style"
+                        name="tooltipStyle"
+                        value={settings.tooltipMode}
+                        onChange={(v) => onSettingChange("tooltipMode", v as ExtensionSettings["tooltipMode"])}
+                        options={[
+                          TOOLTIP_MODE_OPTIONS[0],
+                          TOOLTIP_MODE_OPTIONS[2],
+                          TOOLTIP_MODE_OPTIONS[1],
+                        ]}
+                        renderExtra={(v) => v === "custom" ? (
+                          <div className="cp-form-group" style={{ marginLeft: 28, marginTop: 8 }}>
+                            <textarea
+                              className="cp-template-textarea"
+                              value={settings.tooltipTemplate}
+                              onChange={(e) => onSettingChange("tooltipTemplate", e.target.value)}
+                              rows={4}
+                            />
+                            <div className="cp-help-text" style={{ marginLeft: 0 }}>
+                              Use these keywords — they will be replaced with actual data: {"{name}"} (node name), {"{value}"} (flow amount), {"{percentage}"} (share of total), {"{source}"} (where flow comes from), {"{target}"} (where flow goes to), {"{level}"} (stage name)
+                            </div>
+                          </div>
+                        ) : null}
+                      />
                     </div>
-                  </div>
-                ) : null}
-              />
-            )}
+                  ) : null}
+                />
+              );
+            })()}
           </AccordionSection>
 
           {/* Fonts */}
@@ -831,44 +776,19 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   )}
                 </div>
               )}
+              <div style={{ marginBottom: 12 }}>
+                <div className="cp-radio-group-label">Tooltips</div>
+                <SliderOption
+                  label="Font size"
+                  description=""
+                  value={settings.tooltipFontSize}
+                  min={9}
+                  max={20}
+                  onChange={(v) => onSettingChange("tooltipFontSize", v)}
+                />
+              </div>
             </AccordionSection>
           )}
-
-          {/* Margins */}
-          <AccordionSection title="Margins" isOpen={openSections.has("margins")} onToggle={() => toggleSection("margins")}>
-            <SliderOption
-              label="Top"
-              description=""
-              value={settings.marginTop}
-              min={MARGIN_MIN}
-              max={MARGIN_MAX}
-              onChange={(v) => onSettingChange("marginTop", v)}
-            />
-            <SliderOption
-              label="Bottom"
-              description=""
-              value={settings.marginBottom}
-              min={MARGIN_MIN}
-              max={MARGIN_MAX}
-              onChange={(v) => onSettingChange("marginBottom", v)}
-            />
-            <SliderOption
-              label="Left"
-              description=""
-              value={settings.marginLeft}
-              min={MARGIN_MIN}
-              max={MARGIN_MAX}
-              onChange={(v) => onSettingChange("marginLeft", v)}
-            />
-            <SliderOption
-              label="Right"
-              description=""
-              value={settings.marginRight}
-              min={MARGIN_MIN}
-              max={MARGIN_MAX}
-              onChange={(v) => onSettingChange("marginRight", v)}
-            />
-          </AccordionSection>
         </div>
       </div>
     </>

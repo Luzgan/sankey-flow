@@ -10,6 +10,9 @@
       <url>https://sankeyflow.lukholc.me/SankeyViz.html</url>
     </source-location>
     <icon>/9j/4AAQSkZJRgABAQABLAEsAAD/4QCARXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAAEsAAAAAQAAASwAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAAABCgAwAEAAAAAQAAABAAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/AABEIABAAEAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2wBDAAICAgICAgMCAgMFAwMDBQYFBQUFBggGBgYGBggKCAgICAgICgoKCgoKCgoMDAwMDAwODg4ODg8PDw8PDw8PDw//2wBDAQICAgQEBAcEBAcQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/3QAEAAH/2gAMAwEAAhEDEQA/AP2e8ffGTw34B1K00W5tLzUr+4Yb4rW3dvKjMbsJGkKiPBZQgG8HLAnCgkafw88eXXjCG5XV7GHTLyNyY4orgThosDGSVjbepzvGzA4wTmtjxF4C8MeKPOl1W2LTzR+X5qyOrKB0wAdvHuDnvTPCXg6Lw2rPPMt1OqiKJgHCxQr91EV3fb1OdpAPHHFYSdXnjZLl69/8v63BNa33/D9Hf70f/9k=</icon>
+    <context-menu>
+      <configure-context-menu-item />
+    </context-menu>
     <encoding id="level">
       <display-name>Stage</display-name>
       <role-spec>
@@ -23,13 +26,6 @@
       <role-spec>
         <role-type>continuous-measure</role-type>
         <role-type>continuous-dimension</role-type>
-      </role-spec>
-      <fields max-count="1"/>
-    </encoding>
-    <encoding id="color">
-      <display-name>Color</display-name>
-      <role-spec>
-        <role-type>discrete-dimension</role-type>
       </role-spec>
       <fields max-count="1"/>
     </encoding>
