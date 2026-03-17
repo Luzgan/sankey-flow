@@ -713,17 +713,6 @@ export const ConfigurationApp: React.FC = () => {
                     />
                   </div>
                 )}
-              <div style={{ marginBottom: 12 }}>
-                <div className="radio-group-label">Extension tooltip</div>
-                <SliderOption
-                  label="Font size"
-                  description=""
-                  value={settings.tooltipFontSize}
-                  min={9}
-                  max={20}
-                  onChange={(v) => updateSetting("tooltipFontSize", v)}
-                />
-              </div>
               </div>
             )}
           </>
