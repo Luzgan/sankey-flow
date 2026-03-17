@@ -777,7 +777,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 </div>
               )}
               <div style={{ marginBottom: 12 }}>
-                <div className="cp-radio-group-label">Tooltips</div>
+                <div className="cp-radio-group-label">Extension tooltip</div>
                 <SliderOption
                   label="Font size"
                   description=""

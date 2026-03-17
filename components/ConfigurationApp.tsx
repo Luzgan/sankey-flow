@@ -714,7 +714,7 @@ export const ConfigurationApp: React.FC = () => {
                   </div>
                 )}
               <div style={{ marginBottom: 12 }}>
-                <div className="radio-group-label">Tooltips</div>
+                <div className="radio-group-label">Extension tooltip</div>
                 <SliderOption
                   label="Font size"
                   description=""
