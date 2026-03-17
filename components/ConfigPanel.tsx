@@ -505,6 +505,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 onChange={(v) => onSettingChange("nodeSort", v as ExtensionSettings["nodeSort"])}
                 options={NODE_SORT_OPTIONS}
               />
+              <div className="cp-help-text" style={{ marginBottom: 8 }}>
+                Controls vertical positioning of nodes. <b>Only</b> visible when nodes have different sizes across a stage.
+              </div>
               <RadioGroup
                 label="Vertical alignment"
                 name="nodeAlignment"
@@ -512,9 +515,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
                 options={NODE_ALIGNMENT_OPTIONS}
               />
-              <div className="cp-help-text" style={{ marginBottom: 12 }}>
-                Controls vertical positioning of nodes. Most visible when nodes have different sizes across a stage.
-              </div>
               <CheckboxOption
                 label="Drag to reorder"
                 description="Drag nodes up or down to override the sort order"
