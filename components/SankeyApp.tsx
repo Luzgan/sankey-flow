@@ -622,6 +622,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
             <div className="about-changelog">
               <h3 className="about-changelog-title">Changelog</h3>
               <div className="about-changelog-entry">
+                <span className="about-changelog-version">v1.1.0</span>
+                <span className="about-changelog-date">March 2026</span>
+                <p>Config panel overhaul — exclusive accordion sections, tooltip mode radio (Tableau/Extension/Off), graph squeezes when config opens, node border toggle, tooltip font size slider. Removed colour encoding shelf, per-stage palettes, and margins tab. Fixed drag-and-drop on all stages, colour picker cancel, and click behaviour in author vs viewer mode. Added context-menu Configure button.</p>
+              </div>
+              <div className="about-changelog-entry">
                 <span className="about-changelog-version">v1.0.0</span>
                 <span className="about-changelog-date">March 2026</span>
                 <p>Initial release — multi-stage Sankey diagrams, gradient flows, drop-off mode, drag-to-reorder nodes, smart labels, colour overrides, tooltips, SVG/PNG export, and Tableau selection integration.</p>
