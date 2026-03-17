@@ -156,7 +156,7 @@ export async function Sankey(
   const layout = computeSankeyLayout(
     sankey,
     encodedData,
-    TOP_MARGIN + settings.marginTop,
+    TOP_MARGIN,
     width,
     height,
     settings.nodeWidth,
@@ -250,8 +250,8 @@ export async function Sankey(
     .attr("fill", (d: SankeyNode, index: number) =>
       getColor(d.color, selectedTupleIds, selectedNodeIndexes.has(index))
     )
-    .attr("stroke", NODE_BORDER_COLOR)
-    .attr("stroke-width", NODE_BORDER_WIDTH);
+    .attr("stroke", settings.showNodeBorders ? NODE_BORDER_COLOR : "none")
+    .attr("stroke-width", settings.showNodeBorders ? NODE_BORDER_WIDTH : 0);
 
   // Apply snap-drag behavior if enabled and in authoring mode
   if (settings.enableDrag && isAuthoringMode()) {
@@ -286,11 +286,29 @@ export async function Sankey(
 
     // Shift a node's connected flow y-positions by a delta
     const shiftNodeLinks = (node: SankeyNode, dy: number): void => {
-      for (const link of (node.sourceLinks || [])) {
-        link.y0 = (link.y0 || 0) + dy;
-      }
-      for (const link of (node.targetLinks || [])) {
-        link.y1 = (link.y1 || 0) + dy;
+      const hasSourceLinks = node.sourceLinks && node.sourceLinks.length > 0;
+      const hasTargetLinks = node.targetLinks && node.targetLinks.length > 0;
+
+      if (hasSourceLinks || hasTargetLinks) {
+        for (const link of (node.sourceLinks || [])) {
+          link.y0 = (link.y0 || 0) + dy;
+        }
+        for (const link of (node.targetLinks || [])) {
+          link.y1 = (link.y1 || 0) + dy;
+        }
+      } else {
+        // Fallback: manually search layout links for edge nodes where
+        // d3-sankey may not have populated sourceLinks/targetLinks
+        for (const link of layout.links as SankeyLink[]) {
+          const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+          const targetId = typeof link.target === "string" ? link.target : link.target.id;
+          if (sourceId === node.id) {
+            link.y0 = (link.y0 || 0) + dy;
+          }
+          if (targetId === node.id) {
+            link.y1 = (link.y1 || 0) + dy;
+          }
+        }
       }
     };
 
@@ -343,7 +361,7 @@ export async function Sankey(
           // Move dragged node visually (free Y, constrained to chart bounds)
           const dragH = nodeHeights.get(d.id) || ((d.y1 || 0) - (d.y0 || 0));
           const oldY0 = d.y0 || 0;
-          const newY0 = Math.max(TOP_MARGIN + settings.marginTop, Math.min(height - BOTTOM_MARGIN - settings.marginBottom - dragH, oldY0 + event.dy));
+          const newY0 = Math.max(TOP_MARGIN, Math.min(height - BOTTOM_MARGIN - dragH, oldY0 + event.dy));
           d.y0 = newY0;
           d.y1 = newY0 + dragH;
           shiftNodeLinks(d, newY0 - oldY0);
@@ -632,7 +650,7 @@ export async function Sankey(
       .attr("x", (d: SankeyNode | undefined) =>
         d ? ((d.x1 || 0) + (d.x0 || 0)) / 2 : 0
       )
-      .attr("y", (TOP_MARGIN + settings.marginTop) / 2)
+      .attr("y", (TOP_MARGIN) / 2)
       .attr("text-anchor", "middle")
       .call((sel) => {
         if (settings.useCustomLabelFont) {
@@ -1353,13 +1371,13 @@ export function computeSankeyLayout(
   // Reserve horizontal space for outside labels on first/last columns
   const hasOutsideLabels = settings.showLabels && settings.labelPosition !== "inside";
 
-  let xStart = 1 + settings.marginLeft;
-  let xEnd = width - 1 - settings.marginRight;
+  let xStart = 1;
+  let xEnd = width - 1;
 
   if (hasOutsideLabels) {
     const { left, right } = measureLabelMargins(nodes, settings);
-    xStart = Math.max(xStart, Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, left)) + settings.marginLeft);
-    xEnd = Math.min(xEnd, width - Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, right)) - settings.marginRight);
+    xStart = Math.max(xStart, Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, left)));
+    xEnd = Math.min(xEnd, width - Math.min(LABEL_MARGIN_MAX, Math.max(LABEL_MARGIN_MIN, right)));
   }
 
   const sankeyGenerator = d3Sankey()
@@ -1369,7 +1387,7 @@ export function computeSankeyLayout(
     .nodeId((d: SankeyNode) => d.id)
     .extent([
       [xStart, top],
-      [xEnd, height - BOTTOM_MARGIN - settings.marginBottom],
+      [xEnd, height - BOTTOM_MARGIN],
     ]);
 
   // Apply node sort — all options use deterministic comparators
@@ -1398,7 +1416,7 @@ export function computeSankeyLayout(
   // when layers have different node counts, so we reposition manually.
   {
     const extentTop = top;
-    const extentBottom = height - BOTTOM_MARGIN - settings.marginBottom;
+    const extentBottom = height - BOTTOM_MARGIN;
     const extentHeight = extentBottom - extentTop;
 
     // Group nodes by layer
@@ -1541,15 +1559,6 @@ export function computeSankeyLayout(
     } catch { /* fallback */ }
   }
 
-  // Parse per-stage palettes
-  let stagePalettes: Record<string, string[]> = {};
-  if (settings.colorScheme === "perStage") {
-    try {
-      const parsed: unknown = JSON.parse(settings.stagePalettes);
-      if (parsed && typeof parsed === "object") stagePalettes = parsed as Record<string, string[]>;
-    } catch { /* fallback */ }
-  }
-
   // Build color encoding map: unique colorValues → palette colors
   const colorValueMap = new Map<string, string>();
   const hasColorEncoding = layout.nodes.some((n: SankeyNode) => n.colorValue);
@@ -1577,19 +1586,6 @@ export function computeSankeyLayout(
     if (node.colorValue && colorValueMap.has(node.colorValue)) {
       node.color = colorValueMap.get(node.colorValue)!;
       return;
-    }
-
-    // Per-stage palette
-    if (settings.colorScheme === "perStage") {
-      const layerPalette = stagePalettes[String(node.layer)];
-      if (layerPalette && layerPalette.length > 0) {
-        // Within a stage, assign colors by index among nodes in that stage
-        const nodesInLayer = layout.nodes.filter((n: SankeyNode) => n.layer === node.layer);
-        const indexInLayer = nodesInLayer.indexOf(node);
-        node.color = layerPalette[indexInLayer % layerPalette.length];
-        return;
-      }
-      // Fall through to default if no palette for this stage
     }
 
     const nodeIndex = layout.nodes.indexOf(node);

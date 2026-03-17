@@ -90,6 +90,13 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
     setSettings({ ...DEFAULT_SETTINGS, ...loaded });
   }, []);
 
+  // Listen for context-menu "Configure" button
+  useEffect(() => {
+    const handler = () => setIsConfigOpen(true);
+    document.body.addEventListener("open-config-panel", handler);
+    return () => document.body.removeEventListener("open-config-panel", handler);
+  }, []);
+
   // Listen for settings changes (skip if triggered by our own save)
   // Also re-read workbook formatting — common workflow is changing fonts alongside settings
   useEffect(() => {
@@ -410,6 +417,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
   const handleNodeColorChange = useCallback((color: string) => {
     const nodeName = colorPickerNodeRef.current;
     if (!nodeName) return;
+    if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
 
     const isDropoff = colorPickerIsDropoffRef.current;
     const settingKey = isDropoff ? "dropoffNodeColors" : "nodeColorOverrides";
@@ -571,6 +579,7 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
               styles={styles}
               settings={settings}
               isAuthoring={isAuthoring}
+              isConfigOpen={isConfigOpen}
               onConfigToggle={() => setIsConfigOpen((prev) => !prev)}
               onAboutToggle={() => setIsAboutOpen((prev) => !prev)}
               onRenderComplete={handleRenderComplete}

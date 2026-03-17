@@ -34,7 +34,7 @@ export const TOOLTIP_OFFSET_Y = -28;
 // Layout slider ranges
 export const NODE_PADDING_MIN = 1;
 export const NODE_PADDING_MAX = 60;
-export const NODE_PADDING_DEFAULT = 1;
+export const NODE_PADDING_DEFAULT = 10;
 export const NODE_WIDTH_MIN = 10;
 export const NODE_WIDTH_MAX = 200;
 export const NODE_WIDTH_DEFAULT = STAGE_WIDTH + X_PADDING * 2;
@@ -83,12 +83,9 @@ export const TABLEAU_FONTS = [
   "Verdana",
 ] as const;
 
-// Margin slider ranges
-export const MARGIN_MIN = 0;
-export const MARGIN_MAX = 100;
 
 export interface ExtensionSettings {
-  colorScheme: "default" | "colorblind" | "monochrome" | "custom" | "perStage";
+  colorScheme: "default" | "colorblind" | "monochrome" | "custom";
   flowStyle: "gradient" | "source" | "target";
   showValues: boolean;
   showPercentages: boolean;
@@ -111,9 +108,8 @@ export interface ExtensionSettings {
   nodePositions: string;
   enableNodeColorOverrides: boolean;
   nodeColorOverrides: string;
-  stagePalettes: string;
   sankeyType: "standard" | "dropoff";
-  dropoffColorMode: "default" | "perStage";
+  dropoffColorMode: "default";
   enableDropoffColorOverrides: boolean;
   dropoffNodeColors: string;
   flowOpacity: number;
@@ -133,10 +129,8 @@ export interface ExtensionSettings {
   valueLabelFontFamily: string;
   flowLabelFontFamily: string;
   stageLabelFontFamily: string;
-  marginTop: number;
-  marginBottom: number;
-  marginLeft: number;
-  marginRight: number;
+  tooltipFontSize: number;
+  showNodeBorders: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -163,7 +157,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   nodePositions: "{}",
   enableNodeColorOverrides: true,
   nodeColorOverrides: "{}",
-  stagePalettes: "{}",
   sankeyType: "standard",
   dropoffColorMode: "default",
   enableDropoffColorOverrides: true,
@@ -185,8 +178,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   valueLabelFontFamily: "",
   flowLabelFontFamily: "",
   stageLabelFontFamily: "",
-  marginTop: TOP_MARGIN,
-  marginBottom: BOTTOM_MARGIN,
-  marginLeft: 0,
-  marginRight: 0,
+  tooltipFontSize: 13,
+  showNodeBorders: true,
 };

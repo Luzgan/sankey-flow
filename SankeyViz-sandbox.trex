@@ -29,13 +29,6 @@
       </role-spec>
       <fields max-count="1"/>
     </encoding>
-    <encoding id="color">
-      <display-name>Color</display-name>
-      <role-spec>
-        <role-type>discrete-dimension</role-type>
-      </role-spec>
-      <fields max-count="1"/>
-    </encoding>
   </worksheet-extension>
   <resources>
     <resource id="name">
