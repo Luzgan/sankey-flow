@@ -525,14 +525,14 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
                   <div className="onboarding-step-number">1</div>
                   <div>
                     <strong>Add Stages</strong>
-                    <p>Drag at least 2 dimensions to the <em>Stage</em> encoding to define columns</p>
+                    <p>Drag at least 2 dimensions to the <em>Stage</em> mark card to define columns</p>
                   </div>
                 </div>
                 <div className="onboarding-step">
                   <div className="onboarding-step-number">2</div>
                   <div>
                     <strong>Add a Measure</strong>
-                    <p>Drag a measure to the <em>Flow</em> encoding to define flow sizes</p>
+                    <p>Drag a measure to the <em>Flow</em> mark card to define flow sizes</p>
                   </div>
                 </div>
                 <div className="onboarding-step">
