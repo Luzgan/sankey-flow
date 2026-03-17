@@ -1,4 +1,5 @@
 import { select, create } from "d3-selection";
+import "d3-transition";
 import { drag } from "d3-drag";
 import type { D3DragEvent } from "d3-drag";
 import {
