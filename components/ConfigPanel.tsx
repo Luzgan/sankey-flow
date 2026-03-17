@@ -743,32 +743,32 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               {settings.useCustomLabelFont && (
                 <div style={{ marginLeft: 20 }}>
                   {settings.showLabels && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div className="cp-radio-group-label">Node names</div>
+                    <div className="cp-font-group">
+                      <div className="cp-font-group-title">Node names</div>
                       <SelectOption label="Font" description="" value={settings.labelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("labelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.labelFontSize} min={8} max={24} onChange={(v) => onSettingChange("labelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.labelFontWeight === "bold"} onChange={(v) => onSettingChange("labelFontWeight", v ? "bold" : "normal")} />
                     </div>
                   )}
                   {settings.showValues && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div className="cp-radio-group-label">Node values</div>
+                    <div className="cp-font-group">
+                      <div className="cp-font-group-title">Node values</div>
                       <SelectOption label="Font" description="" value={settings.valueLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("valueLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.valueLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("valueLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.valueLabelFontWeight === "bold"} onChange={(v) => onSettingChange("valueLabelFontWeight", v ? "bold" : "normal")} />
                     </div>
                   )}
                   {settings.showFlowLabels && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div className="cp-radio-group-label">Flow values</div>
+                    <div className="cp-font-group">
+                      <div className="cp-font-group-title">Flow values</div>
                       <SelectOption label="Font" description="" value={settings.flowLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("flowLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.flowLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("flowLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.flowLabelFontWeight === "bold"} onChange={(v) => onSettingChange("flowLabelFontWeight", v ? "bold" : "normal")} />
                     </div>
                   )}
                   {settings.showStageLabels && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div className="cp-radio-group-label">Stage names</div>
+                    <div className="cp-font-group">
+                      <div className="cp-font-group-title">Stage names</div>
                       <SelectOption label="Font" description="" value={settings.stageLabelFontFamily} options={FONT_OPTIONS} onChange={(v) => onSettingChange("stageLabelFontFamily", v)} />
                       <SliderOption label="Font size" description="" value={settings.stageLabelFontSize} min={8} max={24} onChange={(v) => onSettingChange("stageLabelFontSize", v)} />
                       <CheckboxOption label="Bold" description="" checked={settings.stageLabelFontWeight === "bold"} onChange={(v) => onSettingChange("stageLabelFontWeight", v ? "bold" : "normal")} />
