@@ -19,6 +19,7 @@ declare global {
       ErrorCodes: any;
     };
     __sankeyDragSaving?: boolean;
+    __sankeyDragging?: boolean;
   }
 }
 

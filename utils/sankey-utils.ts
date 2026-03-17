@@ -336,6 +336,7 @@ export async function Sankey(
       drag<SVGRectElement, SankeyNode>()
         .on("start", function (_event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
           dragMoved = false;
+          window.__sankeyDragging = true;
           select(this).raise().attr("stroke-width", 2);
 
           // Snapshot the layer's node order, heights, and compute uniform gap
@@ -430,7 +431,9 @@ export async function Sankey(
             });
         })
         .on("end", function (event: D3DragEvent<SVGRectElement, SankeyNode, unknown>, d: SankeyNode) {
-          select(this).attr("stroke-width", NODE_BORDER_WIDTH);
+          select(this).attr("stroke-width", settings.showNodeBorders ? NODE_BORDER_WIDTH : 0);
+          // Clear dragging flag after a tick so the click event from mouseup is suppressed
+          setTimeout(() => { window.__sankeyDragging = false; }, 0);
 
           if (!dragMoved) {
             const sourceEvent = event.sourceEvent as MouseEvent;

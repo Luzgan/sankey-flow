@@ -302,6 +302,11 @@ export const SankeyApp: React.FC<SankeyAppProps> = ({
 
     const handleClick = async (e: MouseEvent) => {
       if (validation && !validation.isValid) return;
+      // Skip click processing during/after drag operations
+      if (window.__sankeyDragging) return;
+      // In authoring mode, node clicks are handled by handleNodeClick (color picker)
+      const clickedEl = document.elementFromPoint(e.pageX, e.pageY);
+      if (isAuthoringMode() && clickedEl?.classList?.contains("node")) return;
       onClick(e, selectedMarks, hoveredMarks, layoutFlows);
       await updateData(false);
     };
