@@ -473,9 +473,6 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("nodeSort", v as ExtensionSettings["nodeSort"])}
           options={NODE_SORT_OPTIONS}
         />
-        <div className="help-text" style={{ marginBottom: 8 }}>
-          Controls vertical positioning of nodes. <b>Only</b> visible when nodes have different sizes across a stage.
-        </div>
         <RadioGroup
           label="Vertical alignment"
           name="nodeAlignment"
@@ -483,6 +480,9 @@ export const ConfigurationApp: React.FC = () => {
           onChange={(v) => updateSetting("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
           options={NODE_ALIGNMENT_OPTIONS}
         />
+        <div className="help-text" style={{ marginBottom: 8 }}>
+          Controls vertical positioning of nodes. <b>Only</b> visible when nodes have different sizes across a stage.
+        </div>
         <CheckboxOption
           label="Override node order manually"
           description="Drag nodes up or down to override the sort order. The sort above is applied first, then your adjustments are layered on top."

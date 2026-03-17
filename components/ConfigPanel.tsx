@@ -84,14 +84,16 @@ const DROPOFF_COLOR_OPTIONS: RadioOption[] = [
 
 const RadioGroup: React.FC<{
   label: string;
+  description?: string;
   name: string;
   value: string;
   options: RadioOption[];
   onChange: (value: string) => void;
   renderExtra?: (optionValue: string) => React.ReactNode;
-}> = ({ label, name, value, options, onChange, renderExtra }) => (
+}> = ({ label, description, name, value, options, onChange, renderExtra }) => (
   <div className="cp-form-group cp-radio-group">
     <div className="cp-radio-group-label">{label}</div>
+    {description && <div className="cp-help-text" style={{ marginTop: 0, marginLeft: 0, marginBottom: 6 }}>{description}</div>}
     <div className="cp-radio-options">
       {options.map((option) => (
         <div key={option.value}>
@@ -505,11 +507,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 onChange={(v) => onSettingChange("nodeSort", v as ExtensionSettings["nodeSort"])}
                 options={NODE_SORT_OPTIONS}
               />
-              <div className="cp-help-text" style={{ marginBottom: 8 }}>
-                Controls vertical positioning of nodes. <b>Only</b> visible when nodes have different sizes across a stage.
-              </div>
               <RadioGroup
                 label="Vertical alignment"
+                description="Controls vertical positioning of nodes. Only visible when nodes have different sizes across a stage."
                 name="nodeAlignment"
                 value={settings.nodeAlignment}
                 onChange={(v) => onSettingChange("nodeAlignment", v as ExtensionSettings["nodeAlignment"])}
