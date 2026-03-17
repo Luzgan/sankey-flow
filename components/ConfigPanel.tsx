@@ -694,9 +694,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     });
                   }}
                   options={[
-                    { value: "off", label: "Off", description: "No tooltips on hover" },
-                    { value: "extension", label: "Extension tooltip", description: "Show value and percentage on hover" },
                     { value: "tableau", label: "Tableau tooltip", description: "Show Tableau\u2019s native tooltip with the underlying data row" },
+                    { value: "extension", label: "Extension tooltip", description: "Show value and percentage on hover" },
+                    { value: "off", label: "Off", description: "No tooltips on hover" },
                   ]}
                   renderExtra={(v) => v === "extension" ? (
                     <div style={{ marginLeft: 24, marginTop: 4 }}>
